@@ -21,6 +21,7 @@ const templates = [
 ];
 
 const tracks = ["Fiber Builder", "CKB Fundamentals", "AI Discipline"];
+const roomNames = ["Explain", "Debug", "Remix", "Attack", "Ship"];
 
 const fallbackQuest: QuestBlueprint = {
   title: "Paywall Reactor",
@@ -50,14 +51,12 @@ const initialRun: GenerateQuestResponse = {
   quest: fallbackQuest,
 };
 
-const telemetry = [
-  ["Generated code owned", "41%"],
-  ["Tests repaired by human", "7"],
-  ["Hint debt", "2 CKB"],
-  ["Fiber rewards pending", "920"],
+const skillStats = [
+  ["Prompt debt", "3"],
+  ["Test repairs", "7"],
+  ["Proof XP", "1,240"],
+  ["Reward pool", "920"],
 ];
-
-const roomNames = ["Explain", "Debug", "Remix", "Attack", "Ship"];
 
 export function QuestArena() {
   const [buildPrompt, setBuildPrompt] = useState(starterPrompt);
@@ -104,11 +103,13 @@ export function QuestArena() {
     };
   }, []);
 
+  const gates = normalizeGates(run.quest.comprehension_gates);
+  const activeGate = Math.min(2, gates.length - 1);
   const ownershipScore = useMemo(() => {
-    const base = difficulty === "novice" ? 52 : difficulty === "boss" ? 76 : 68;
-    const bonus = run.source === "open-ai" ? 4 : 0;
-    return Math.min(base + bonus, 94);
-  }, [difficulty, run.source]);
+    const base = difficulty === "novice" ? 48 : difficulty === "boss" ? 72 : 61;
+    const sourceBonus = run.source === "open-ai" ? 6 : 0;
+    return Math.min(base + sourceBonus + activeGate * 7, 96);
+  }, [activeGate, difficulty, run.source]);
 
   async function handleGenerate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -133,48 +134,25 @@ export function QuestArena() {
     }
   }
 
-  const gates = normalizeGates(run.quest.comprehension_gates);
-
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#fffaf0_0,#f3efe7_36%,#e6edf5_100%)] text-ink">
-      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-4 sm:px-6 lg:px-8">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-ink/10 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 place-items-center rounded-md bg-ink text-sm font-black text-panel">
+    <main className="min-h-screen bg-[#f5f1e8] text-ink">
+      <div className="mx-auto min-h-screen w-full max-w-[1500px] px-3 py-4 sm:px-6 lg:px-8">
+        <header className="grid gap-4 border-b border-ink/10 pb-4 lg:grid-cols-[1fr_auto]">
+          <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-md bg-ink text-sm font-black text-[#f5f1e8] shadow-[inset_0_-4px_0_rgba(255,255,255,0.12)]">
               VQ
             </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-ink/55">
+            <div className="min-w-0">
+              <p className="text-xs font-black uppercase tracking-[0.28em] text-ember">
                 VibeQuest
               </p>
-              <h1 className="text-xl font-black leading-tight sm:text-2xl">
-                Vibecode. Prove it. Ship it.
+              <h1 className="max-w-4xl text-balance text-xl font-black leading-none min-[420px]:text-2xl sm:text-4xl">
+                AI can write the code. You still have to own it.
               </h1>
             </div>
           </div>
-          <nav className="flex items-center gap-2 text-sm font-semibold">
-            <a className="rounded-md bg-white px-3 py-2 shadow-panel-sm" href="#arena">
-              Arena
-            </a>
-            <a className="rounded-md px-3 py-2 text-ink/70" href="#quests">
-              Run
-            </a>
-            <a className="rounded-md px-3 py-2 text-ink/70" href="#proof">
-              Proof
-            </a>
-          </nav>
-        </header>
 
-        <section className="mt-4 grid gap-2 rounded-lg border border-ink/10 bg-white/72 p-3 shadow-panel-sm md:grid-cols-[1fr_auto]">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-ink/45">
-              Runtime
-            </p>
-            <p className="mt-1 break-all text-sm font-semibold text-ink/70">
-              API {API_BASE_URL}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="grid min-w-0 grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center lg:justify-end">
             <StatusPill
               label="Core"
               state={health ? "ready" : healthError ? "down" : "checking"}
@@ -198,62 +176,68 @@ export function QuestArena() {
               state={health?.integrations.fiber_rpc ? "ready" : "planned"}
             />
           </div>
+
           {healthError && (
-            <p className="md:col-span-2 rounded-md border border-ember/30 bg-ember/10 px-3 py-2 text-sm font-semibold text-ember">
+            <p className="rounded-md border border-ember/25 bg-ember/10 px-3 py-2 text-sm font-semibold text-ember lg:col-span-2">
               {healthError}
             </p>
           )}
-        </section>
+        </header>
 
-        <section className="grid flex-1 gap-4 py-4 lg:grid-cols-[1.2fr_0.8fr]">
-          <div id="arena" className="flex min-h-[620px] flex-col gap-4">
+        <section className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)] gap-4 py-4 xl:grid-cols-[360px_minmax(0,1fr)_380px]">
+          <aside className="w-full min-w-0 max-w-full space-y-4">
             <form
               onSubmit={handleGenerate}
-              className="rounded-lg border border-ink/10 bg-white/88 p-4 shadow-panel-sm"
+              className="w-full min-w-0 max-w-full overflow-hidden rounded-lg border border-ink/10 bg-white shadow-[0_12px_40px_rgba(16,18,22,0.08)]"
             >
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.22em] text-ember">
-                    Build Prompt
-                  </p>
-                  <h2 className="text-2xl font-black leading-tight sm:text-4xl">
-                    Generate the app. Then escape black box mode.
-                  </h2>
-                </div>
-                <div className="rounded-md bg-signal px-3 py-2 text-sm font-black text-white">
-                  {ownershipScore}% owned
-                </div>
+              <div className="border-b border-ink/10 bg-ink px-4 py-3 text-white">
+                <p className="text-xs font-black uppercase tracking-[0.24em] text-white/55">
+                  Mission Input
+                </p>
+                <h2 className="mt-1 text-xl font-black">Vibecode a run</h2>
               </div>
 
-              <div className="grid gap-3 lg:grid-cols-[1fr_220px]">
-                <textarea
-                  className="min-h-40 resize-none rounded-md border border-ink/15 bg-panel p-4 font-mono text-sm leading-6 text-ink/80 outline-none transition focus:border-ember"
-                  minLength={12}
-                  value={buildPrompt}
-                  onChange={(event) => setBuildPrompt(event.target.value)}
-                  aria-label="Build prompt"
-                />
-                <div className="grid gap-3">
-                  <label className="grid gap-1 text-xs font-bold uppercase tracking-[0.16em] text-ink/55">
-                    Track
-                    <select
-                      className="rounded-md border border-ink/15 bg-white px-3 py-3 text-sm font-black normal-case tracking-normal text-ink outline-none"
-                      value={skillTrack}
-                      onChange={(event) => setSkillTrack(event.target.value)}
-                    >
-                      {tracks.map((track) => (
-                        <option key={track}>{track}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
+              <div className="space-y-4 p-4">
+                <label className="grid min-w-0 gap-2">
+                  <span className="text-xs font-black uppercase tracking-[0.18em] text-ink/45">
+                    Build request
+                  </span>
+                  <textarea
+                    aria-label="Build prompt"
+                    className="min-h-44 w-full max-w-full resize-none rounded-md border border-ink/15 bg-[#f8f5ee] p-4 font-mono text-sm leading-6 text-ink outline-none transition focus:border-ember focus:bg-white"
+                    minLength={12}
+                    value={buildPrompt}
+                    onChange={(event) => setBuildPrompt(event.target.value)}
+                  />
+                </label>
+
+                <label className="grid min-w-0 gap-2">
+                  <span className="text-xs font-black uppercase tracking-[0.18em] text-ink/45">
+                    Skill track
+                  </span>
+                  <select
+                    className="h-12 w-full max-w-full rounded-md border border-ink/15 bg-white px-3 text-sm font-black text-ink outline-none transition focus:border-ember"
+                    value={skillTrack}
+                    onChange={(event) => setSkillTrack(event.target.value)}
+                  >
+                    {tracks.map((track) => (
+                      <option key={track}>{track}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <div>
+                  <p className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-ink/45">
+                    Difficulty
+                  </p>
+                  <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2 sm:grid-cols-3">
                     {(["novice", "builder", "boss"] as Difficulty[]).map(
                       (level) => (
                         <button
-                          className={`rounded-md border px-2 py-3 text-xs font-black capitalize transition ${
+                          className={`h-11 rounded-md border text-xs font-black capitalize transition ${
                             difficulty === level
                               ? "border-ink bg-ink text-white"
-                              : "border-ink/15 bg-white text-ink/65 hover:border-ink/35"
+                              : "border-ink/15 bg-white text-ink/60 hover:border-ink/35 hover:text-ink"
                           }`}
                           key={level}
                           onClick={() => setDifficulty(level)}
@@ -264,188 +248,274 @@ export function QuestArena() {
                       ),
                     )}
                   </div>
+                </div>
+
+                <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
                   <button
-                    className="rounded-md bg-ink px-4 py-3 text-sm font-black text-white transition hover:bg-ember disabled:cursor-not-allowed disabled:bg-ink/40"
+                    className="h-12 rounded-md bg-ember px-4 text-sm font-black text-white transition hover:bg-ink disabled:cursor-not-allowed disabled:bg-ink/35"
                     disabled={isGenerating}
                     type="submit"
                   >
-                    {isGenerating ? "Generating..." : "Start Run"}
+                    {isGenerating ? "Forging..." : "Forge Quest"}
                   </button>
                   <button
-                    className="rounded-md border border-ink/15 bg-white px-4 py-3 text-sm font-black text-ink transition hover:border-ink/35"
+                    className="h-12 min-w-0 rounded-md border border-ink/15 bg-white px-4 text-sm font-black text-ink transition hover:border-ink/35"
                     onClick={() => setBuildPrompt(nextTemplate(buildPrompt))}
                     type="button"
                   >
-                    Use Template
+                    Template
                   </button>
+                </div>
+
+                {error && (
+                  <p className="rounded-md border border-ember/25 bg-ember/10 px-3 py-2 text-sm font-semibold text-ember">
+                    {error}
+                  </p>
+                )}
+              </div>
+            </form>
+
+            <section className="w-full min-w-0 rounded-lg border border-ink/10 bg-white p-4">
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-ink/45">
+                Runtime
+              </p>
+              <p className="mt-2 break-all font-mono text-xs leading-5 text-ink/65">
+                {API_BASE_URL}
+              </p>
+            </section>
+          </aside>
+
+          <section className="w-full min-w-0 max-w-full space-y-4">
+            <div className="w-full min-w-0 overflow-hidden rounded-lg border border-ink/10 bg-ink text-white shadow-[0_18px_60px_rgba(16,18,22,0.18)]">
+              <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 border-b border-white/10 p-5 lg:grid-cols-[minmax(0,1fr)_220px]">
+                <div className="min-w-0">
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                    <span className="rounded bg-white/10 px-2.5 py-1 text-xs font-black uppercase tracking-[0.16em] text-white/65">
+                      {skillTrack}
+                    </span>
+                    <span className="rounded bg-ember px-2.5 py-1 text-xs font-black uppercase tracking-[0.16em]">
+                      {sourceLabel(run.source)}
+                    </span>
+                  </div>
+                  <h2 className="text-balance text-3xl font-black leading-none sm:text-5xl">
+                    {run.quest.title}
+                  </h2>
+                  <p className="mt-4 max-w-3xl text-pretty text-base font-semibold leading-7 text-white/68">
+                    {run.quest.premise}
+                  </p>
+                </div>
+
+                <div className="min-w-0 rounded-md border border-white/10 bg-white/[0.06] p-4">
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-white/45">
+                    Ownership
+                  </p>
+                  <div className="mt-3 flex items-end gap-2">
+                    <span className="text-5xl font-black leading-none">
+                      {ownershipScore}
+                    </span>
+                    <span className="pb-1 text-sm font-black text-white/45">
+                      %
+                    </span>
+                  </div>
+                  <div className="mt-4 h-2 overflow-hidden rounded bg-white/10">
+                    <div
+                      className="h-full rounded bg-ember transition-all"
+                      style={{ width: `${ownershipScore}%` }}
+                    />
+                  </div>
                 </div>
               </div>
 
-              {error && (
-                <p className="mt-3 rounded-md border border-ember/30 bg-ember/10 px-3 py-2 text-sm font-semibold text-ember">
-                  {error}
-                </p>
-              )}
-            </form>
+              <div className="grid gap-px bg-white/10 sm:grid-cols-2 lg:grid-cols-4">
+                {skillStats.map(([label, value]) => (
+                <div className="min-w-0 bg-ink px-5 py-4" key={label}>
+                    <p className="text-xs font-black uppercase tracking-[0.16em] text-white/38">
+                      {label}
+                    </p>
+                    <p className="mt-1 text-2xl font-black">{value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
 
-            <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-              <div className="rounded-lg border border-ink/10 bg-ink p-4 text-panel shadow-panel-sm">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <p className="text-xs font-bold uppercase tracking-[0.22em] text-panel/55">
-                    Code Arena
+            <section className="w-full min-w-0 rounded-lg border border-ink/10 bg-white p-4 shadow-[0_12px_40px_rgba(16,18,22,0.06)]">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.22em] text-wire">
+                    Comprehension Route
                   </p>
-                  <span className="rounded bg-ember px-2 py-1 text-xs font-black text-white">
-                    {isGenerating ? "AI forging quest" : "Quest loaded"}
+                  <h3 className="text-2xl font-black">Escape black box mode</h3>
+                </div>
+                <span className="rounded-md bg-[#eef3ff] px-3 py-2 text-xs font-black text-wire">
+                  Gate {activeGate + 1} / {gates.length}
+                </span>
+              </div>
+
+              <div className="grid min-w-0 gap-3">
+                {gates.map((gate, index) => (
+                  <GateRow
+                    active={index === activeGate}
+                    complete={index < activeGate}
+                    gate={gate}
+                    index={index}
+                    key={`${gate}-${index}`}
+                  />
+                ))}
+              </div>
+            </section>
+
+            <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+              <div className="min-w-0 rounded-lg border border-ink/10 bg-[#111318] p-4 text-[#f6f1e8]">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <p className="text-xs font-black uppercase tracking-[0.22em] text-white/38">
+                    Code Chamber
+                  </p>
+                  <span className="rounded bg-signal px-2.5 py-1 text-xs font-black">
+                    {isGenerating ? "Compiling mission" : "Ready"}
                   </span>
                 </div>
-                <pre className="overflow-hidden whitespace-pre-wrap rounded-md bg-black/30 p-4 font-mono text-xs leading-5 text-panel/90">
-{`// ${run.quest.title}
+                <pre className="min-h-56 overflow-hidden whitespace-pre-wrap rounded-md border border-white/10 bg-black/24 p-4 font-mono text-xs leading-6 text-white/78">
+{`mission("${run.quest.title}");
 objective("${run.quest.build_objective}");
 
-gate("${gates[0]}");
-gate("${gates[1]}");
+current_gate("${roomNames[activeGate]}");
+prove("${gates[activeGate]}");
 
-// Boss: ${run.quest.boss_fight}`}
+boss("${run.quest.boss_fight}");`}
                 </pre>
               </div>
 
-              <div className="rounded-lg border border-ink/10 bg-white/88 p-4 shadow-panel-sm">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <p className="text-xs font-bold uppercase tracking-[0.22em] text-wire">
-                    Comprehension Meter
-                  </p>
-                  <span className="text-sm font-black">
-                    Gate {Math.min(gates.length, 3)} / {gates.length}
-                  </span>
-                </div>
-                <div className="h-4 overflow-hidden rounded bg-ink/10">
-                  <div
-                    className="h-full bg-gradient-to-r from-signal via-wire to-ember transition-all"
-                    style={{ width: `${ownershipScore}%` }}
-                  />
-                </div>
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  {telemetry.map(([label, value]) => (
-                    <div
-                      key={label}
-                      className="rounded-md border border-ink/10 bg-panel p-3"
-                    >
-                      <p className="text-xs font-semibold text-ink/55">
-                        {label}
-                      </p>
-                      <p className="mt-1 text-xl font-black">{value}</p>
-                    </div>
+              <div className="min-w-0 rounded-lg border border-ink/10 bg-white p-4">
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-signal">
+                  Proof Rail
+                </p>
+                <h3 className="mt-2 text-2xl font-black">What unlocks</h3>
+                <div className="mt-4 space-y-3 text-sm font-semibold leading-6 text-ink/70">
+                  <p>{run.quest.reward_logic}</p>
+                  {run.quest.ckb_fiber_hooks.map((hook) => (
+                    <p className="border-l-4 border-signal/40 pl-3" key={hook}>
+                      {hook}
+                    </p>
                   ))}
                 </div>
               </div>
-            </div>
+            </section>
+          </section>
 
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-              {gates.map((gate, index) => (
-                <article
-                  key={`${gate}-${index}`}
-                  className="rounded-lg border border-ink/10 bg-white/88 p-4 shadow-panel-sm"
-                >
-                  <div className="mb-4 flex items-center justify-between gap-2">
-                    <h3 className="text-lg font-black">
-                      {roomNames[index] ?? `Gate ${index + 1}`}
-                    </h3>
-                    <span className="rounded bg-ink/5 px-2 py-1 text-xs font-bold text-ink/65">
-                      {index === 0 ? "Unlocked" : index === 1 ? "Live" : "Locked"}
-                    </span>
-                  </div>
-                  <p className="min-h-20 text-sm leading-6 text-ink/70">
-                    {gate}
-                  </p>
-                  <p className="mt-4 text-sm font-black text-ember">
-                    {index === 0 ? "Ready" : `Gate ${index + 1}`}
-                  </p>
-                </article>
-              ))}
-            </div>
-          </div>
-
-          <aside className="grid gap-4 lg:grid-rows-[auto_1fr_auto]">
-            <section
-              id="quests"
-              className="rounded-lg border border-ink/10 bg-white/88 p-4 shadow-panel-sm"
-            >
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.22em] text-plum">
-                    Active Run
-                  </p>
-                  <h2 className="text-2xl font-black">{run.quest.title}</h2>
-                </div>
-                <span className="rounded-md bg-panel px-3 py-2 text-xs font-black">
-                  {sourceLabel(run.source)}
-                </span>
-              </div>
-              <p className="rounded-md border border-ink/10 bg-panel p-3 text-sm font-semibold leading-6 text-ink/75">
-                {run.quest.premise}
+          <aside className="w-full min-w-0 max-w-full space-y-4">
+            <section className="w-full min-w-0 rounded-lg border border-ink/10 bg-white p-4 shadow-[0_12px_40px_rgba(16,18,22,0.06)]">
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-plum">
+                Active Run
               </p>
-              <div className="mt-3 rounded-md border border-ink/10 bg-panel p-3">
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-ink/50">
+              <h3 className="mt-2 text-pretty text-2xl font-black leading-tight">
+                {run.quest.build_objective}
+              </h3>
+              <div className="mt-4 rounded-md bg-[#f8f5ee] p-3">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-ink/40">
                   Run ID
                 </p>
-                <p className="mt-1 break-all font-mono text-xs text-ink/70">
+                <p className="mt-1 break-all font-mono text-xs leading-5 text-ink/62">
                   {run.run_id}
                 </p>
               </div>
             </section>
 
-            <section className="rounded-lg border border-ink/10 bg-ink p-4 text-panel shadow-panel-sm">
-              <p className="text-xs font-bold uppercase tracking-[0.22em] text-panel/55">
-                Boss Fight
-              </p>
-              <h2 className="mt-2 text-3xl font-black leading-tight">
-                {run.quest.boss_fight}
-              </h2>
-              <p className="mt-3 text-sm leading-6 text-panel/70">
-                Clear the final gate by explaining the failure, shipping a
-                human-authored fix, and defending the diff before rewards unlock.
-              </p>
-              <div className="mt-5 grid grid-cols-3 gap-2 text-center">
-                <div className="rounded-md bg-white/10 p-3">
-                  <p className="text-2xl font-black">
-                    {difficulty === "boss" ? 12 : 18}
-                  </p>
-                  <p className="text-xs text-panel/55">min</p>
-                </div>
-                <div className="rounded-md bg-white/10 p-3">
-                  <p className="text-2xl font-black">
-                    {difficulty === "novice" ? 5 : 3}
-                  </p>
-                  <p className="text-xs text-panel/55">hints</p>
-                </div>
-                <div className="rounded-md bg-white/10 p-3">
-                  <p className="text-2xl font-black">
-                    {difficulty === "boss" ? "8x" : "5x"}
-                  </p>
-                  <p className="text-xs text-panel/55">reward</p>
-                </div>
+            <section className="w-full min-w-0 overflow-hidden rounded-lg border border-ink/10 bg-ember text-white shadow-[0_18px_60px_rgba(239,91,42,0.22)]">
+              <div className="p-4">
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-white/55">
+                  Boss Fight
+                </p>
+                <h3 className="mt-2 text-pretty text-3xl font-black leading-tight">
+                  {run.quest.boss_fight}
+                </h3>
+              </div>
+              <div className="grid grid-cols-1 border-t border-white/18 min-[360px]:grid-cols-3">
+                <BossStat
+                  label="min"
+                  value={difficulty === "boss" ? "12" : "18"}
+                />
+                <BossStat
+                  label="hints"
+                  value={difficulty === "novice" ? "5" : "3"}
+                />
+                <BossStat
+                  label="reward"
+                  value={difficulty === "boss" ? "8x" : "5x"}
+                />
               </div>
             </section>
 
-            <section
-              id="proof"
-              className="rounded-lg border border-ink/10 bg-white/88 p-4 shadow-panel-sm"
-            >
-              <p className="text-xs font-bold uppercase tracking-[0.22em] text-signal">
-                Proof Rail
+            <section className="w-full min-w-0 rounded-lg border border-ink/10 bg-white p-4">
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-ink/45">
+                Rule of the run
               </p>
-              <h2 className="mt-2 text-2xl font-black">Ship unlocks</h2>
-              <div className="mt-4 space-y-3 text-sm font-semibold text-ink/75">
-                <p>{run.quest.reward_logic}</p>
-                {run.quest.ckb_fiber_hooks.map((hook) => (
-                  <p key={hook}>{hook}</p>
-                ))}
-              </div>
+              <p className="mt-2 text-pretty text-lg font-black leading-7">
+                AI may generate the code, but rewards unlock only when you can
+                explain and defend the diff.
+              </p>
             </section>
           </aside>
         </section>
       </div>
     </main>
+  );
+}
+
+function GateRow({
+  active,
+  complete,
+  gate,
+  index,
+}: {
+  active: boolean;
+  complete: boolean;
+  gate: string;
+  index: number;
+}) {
+  return (
+    <article
+      className={`grid min-w-0 gap-3 rounded-md border p-3 transition md:grid-cols-[112px_minmax(0,1fr)_auto] md:items-center ${
+        active
+          ? "border-ember/35 bg-ember/8 shadow-[inset_4px_0_0_#ef5b2a]"
+          : complete
+            ? "border-signal/20 bg-signal/8"
+            : "border-ink/10 bg-[#f8f5ee]"
+      }`}
+    >
+      <div>
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-ink/38">
+          Gate {index + 1}
+        </p>
+        <h4 className="mt-1 text-lg font-black">
+          {roomNames[index] ?? "Prove"}
+        </h4>
+      </div>
+      <p className="min-w-0 text-sm font-semibold leading-6 text-ink/68">
+        {gate}
+      </p>
+      <span
+        className={`w-fit rounded px-2.5 py-1 text-xs font-black ${
+          complete
+            ? "bg-signal text-white"
+            : active
+              ? "bg-ember text-white"
+              : "bg-white text-ink/45"
+        }`}
+      >
+        {complete ? "Cleared" : active ? "Live" : "Locked"}
+      </span>
+    </article>
+  );
+}
+
+function BossStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="border-b border-white/18 p-4 last:border-b-0 min-[360px]:border-b-0 min-[360px]:border-r min-[360px]:last:border-r-0">
+      <p className="text-3xl font-black leading-none">{value}</p>
+      <p className="mt-1 text-xs font-black uppercase tracking-[0.16em] text-white/55">
+        {label}
+      </p>
+    </div>
   );
 }
 
@@ -482,10 +552,12 @@ function StatusPill({
         ? "bg-ember text-white"
         : state === "fallback"
           ? "bg-wire text-white"
-          : "bg-panel text-ink/70";
+          : "bg-white text-ink/58";
 
   return (
-    <span className={`rounded-md px-3 py-2 text-xs font-black ${className}`}>
+    <span
+      className={`min-w-0 truncate rounded-md px-3 py-2 text-center text-xs font-black ${className}`}
+    >
       {label}: {state}
     </span>
   );
