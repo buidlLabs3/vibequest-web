@@ -1,11 +1,14 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
+  API_BASE_URL,
   Difficulty,
   GenerateQuestResponse,
+  HealthResponse,
   QuestBlueprint,
   generateQuest,
+  getHealth,
 } from "@/lib/api";
 
 const starterPrompt =
@@ -61,8 +64,45 @@ export function QuestArena() {
   const [skillTrack, setSkillTrack] = useState(tracks[0]);
   const [difficulty, setDifficulty] = useState<Difficulty>("builder");
   const [run, setRun] = useState<GenerateQuestResponse>(initialRun);
+  const [health, setHealth] = useState<HealthResponse | null>(null);
+  const [isHealthLoading, setIsHealthLoading] = useState(true);
+  const [healthError, setHealthError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    getHealth()
+      .then((nextHealth) => {
+        if (!isMounted) {
+          return;
+        }
+
+        setHealth(nextHealth);
+        setHealthError(null);
+      })
+      .catch((nextError) => {
+        if (!isMounted) {
+          return;
+        }
+
+        setHealthError(
+          nextError instanceof Error
+            ? nextError.message
+            : "Backend health check failed.",
+        );
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsHealthLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const ownershipScore = useMemo(() => {
     const base = difficulty === "novice" ? 52 : difficulty === "boss" ? 76 : 68;
@@ -124,6 +164,46 @@ export function QuestArena() {
             </a>
           </nav>
         </header>
+
+        <section className="mt-4 grid gap-2 rounded-lg border border-ink/10 bg-white/72 p-3 shadow-panel-sm md:grid-cols-[1fr_auto]">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-ink/45">
+              Runtime
+            </p>
+            <p className="mt-1 break-all text-sm font-semibold text-ink/70">
+              API {API_BASE_URL}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusPill
+              label="Core"
+              state={health ? "ready" : healthError ? "down" : "checking"}
+            />
+            <StatusPill
+              label="OpenAI"
+              state={
+                health?.integrations.openai
+                  ? "ready"
+                  : isHealthLoading
+                    ? "checking"
+                    : "fallback"
+              }
+            />
+            <StatusPill
+              label="CKB"
+              state={health?.integrations.ckb_rpc ? "ready" : "planned"}
+            />
+            <StatusPill
+              label="Fiber"
+              state={health?.integrations.fiber_rpc ? "ready" : "planned"}
+            />
+          </div>
+          {healthError && (
+            <p className="md:col-span-2 rounded-md border border-ember/30 bg-ember/10 px-3 py-2 text-sm font-semibold text-ember">
+              {healthError}
+            </p>
+          )}
+        </section>
 
         <section className="grid flex-1 gap-4 py-4 lg:grid-cols-[1.2fr_0.8fr]">
           <div id="arena" className="flex min-h-[620px] flex-col gap-4">
@@ -386,4 +466,27 @@ function nextTemplate(currentPrompt: string) {
 
 function sourceLabel(source: GenerateQuestResponse["source"]) {
   return source === "open-ai" ? "OpenAI" : "Fallback";
+}
+
+function StatusPill({
+  label,
+  state,
+}: {
+  label: string;
+  state: "ready" | "fallback" | "planned" | "checking" | "down";
+}) {
+  const className =
+    state === "ready"
+      ? "bg-signal text-white"
+      : state === "down"
+        ? "bg-ember text-white"
+        : state === "fallback"
+          ? "bg-wire text-white"
+          : "bg-panel text-ink/70";
+
+  return (
+    <span className={`rounded-md px-3 py-2 text-xs font-black ${className}`}>
+      {label}: {state}
+    </span>
+  );
 }

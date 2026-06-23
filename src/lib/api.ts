@@ -16,15 +16,44 @@ export type GenerateQuestResponse = {
   quest: QuestBlueprint;
 };
 
+export type HealthResponse = {
+  service: string;
+  status: "ok";
+  environment: string;
+  ai_layer: "open-ai" | "fallback";
+  integrations: {
+    openai: boolean;
+    ckb_rpc: boolean;
+    fiber_rpc: boolean;
+  };
+  timestamp: string;
+};
+
 export type GenerateQuestRequest = {
   build_prompt: string;
   skill_track: string;
   difficulty: Difficulty;
 };
 
-const API_BASE_URL =
+export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ??
-  "http://localhost:8080";
+  "/api/core";
+
+export async function getHealth(): Promise<HealthResponse> {
+  const response = await fetch(`${API_BASE_URL}/health`, {
+    method: "GET",
+    headers: {
+      accept: "application/json",
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("Backend health check failed.");
+  }
+
+  return response.json() as Promise<HealthResponse>;
+}
 
 export async function generateQuest(
   payload: GenerateQuestRequest,
