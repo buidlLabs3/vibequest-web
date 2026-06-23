@@ -14,6 +14,7 @@ Copy `.env.example` to `.env.local` when the backend is running somewhere other 
 ## Product Shape
 
 - Build prompt arena for AI-assisted app generation.
+- Live quest generation through `vibequest-core`.
 - Comprehension meter that blocks rewards until the user proves understanding.
 - Challenge rooms: Explain, Debug, Remix, Attack, Ship.
 - Quest board for CKB/Fiber builder tracks.
