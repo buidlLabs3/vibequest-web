@@ -13,11 +13,13 @@
 
 html {
   min-width: 320px;
+  overflow-x: hidden;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
+  overflow-x: hidden;
 }
 
 button,
@@ -29,7 +31,32 @@ select {
   max-width: 100%;
 }
 
+textarea {
+  overflow-wrap: anywhere;
+}
+
+.overflow-wrap-anywhere {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 ::selection {
-  background: #ef5b2a;
-  color: #fffaf0;
+  background: #2f6fed;
+  color: #ffffff;
+}
+
+.control-label {
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  line-height: 1rem;
+  text-transform: uppercase;
+  color: rgb(16 18 22 / 0.42);
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }

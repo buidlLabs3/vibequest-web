@@ -2,6 +2,23 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
+  BookOpen,
+  Bot,
+  Check,
+  ChevronRight,
+  Coins,
+  FileCode2,
+  FlaskConical,
+  Gauge,
+  Play,
+  RefreshCw,
+  Save,
+  ShieldCheck,
+  Sparkles,
+  Terminal,
+  Trophy,
+} from "lucide-react";
+import {
   API_BASE_URL,
   Difficulty,
   GenerateQuestResponse,
@@ -21,7 +38,7 @@ const templates = [
 ];
 
 const tracks = ["Fiber Builder", "CKB Fundamentals", "AI Discipline"];
-const roomNames = ["Explain", "Debug", "Remix", "Attack", "Ship"];
+const gateNames = ["Explain", "Debug", "Remix", "Attack", "Ship"];
 
 const fallbackQuest: QuestBlueprint = {
   title: "Paywall Reactor",
@@ -40,7 +57,7 @@ const fallbackQuest: QuestBlueprint = {
   reward_logic:
     "XP unlocks per gate; Fiber rewards and the CKB proof badge unlock only after the boss fight.",
   ckb_fiber_hooks: [
-    "CKB stores proof-of-understanding badges and quest receipts.",
+    "CKB records the proof-of-understanding badges and quest receipts.",
     "Fiber handles hint fees, instant bounties, and sponsor rewards.",
   ],
 };
@@ -51,12 +68,55 @@ const initialRun: GenerateQuestResponse = {
   quest: fallbackQuest,
 };
 
-const skillStats = [
-  ["Prompt debt", "3"],
-  ["Test repairs", "7"],
-  ["Proof XP", "1,240"],
-  ["Reward pool", "920"],
+const files = [
+  {
+    id: "route",
+    name: "app/api/unlock/route.ts",
+    language: "ts",
+    initial: `export async function POST(request: Request) {
+  const body = await request.json();
+
+  // TODO: verify payment receipt ownership before unlock.
+  const receipt = await getReceipt(body.receiptId);
+
+  return Response.json({
+    unlocked: true,
+    articleId: body.articleId,
+    proofCell: receipt.cell,
+  });
+}`,
+  },
+  {
+    id: "verifier",
+    name: "lib/payment-verifier.ts",
+    language: "ts",
+    initial: `export function verifyReceipt(receipt: Receipt, user: User) {
+  if (!receipt || receipt.status !== "paid") {
+    return false;
+  }
+
+  return receipt.amount >= priceFor(user.plan);
+}`,
+  },
+  {
+    id: "test",
+    name: "tests/unlock.test.ts",
+    language: "ts",
+    initial: `test("blocks unpaid reads", async () => {
+  const response = await unlockArticle({
+    articleId: "guide-001",
+    receiptId: "unpaid-receipt",
+  });
+
+  expect(response.status).toBe(403);
+});`,
+  },
 ];
+
+type TestRun = {
+  status: "idle" | "running" | "passed" | "failed";
+  output: string[];
+};
 
 export function QuestArena() {
   const [buildPrompt, setBuildPrompt] = useState(starterPrompt);
@@ -68,6 +128,19 @@ export function QuestArena() {
   const [healthError, setHealthError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [activeFile, setActiveFile] = useState(files[0].id);
+  const [activeGate, setActiveGate] = useState(0);
+  const [codeByFile, setCodeByFile] = useState(() =>
+    Object.fromEntries(files.map((file) => [file.id, file.initial])),
+  );
+  const [proofNotes, setProofNotes] = useState<Record<number, string>>({});
+  const [testRun, setTestRun] = useState<TestRun>({
+    status: "idle",
+    output: [
+      "$ npm test -- --quest=paywall-reactor",
+      "Waiting for your first run.",
+    ],
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -104,17 +177,31 @@ export function QuestArena() {
   }, []);
 
   const gates = normalizeGates(run.quest.comprehension_gates);
-  const activeGate = Math.min(2, gates.length - 1);
-  const ownershipScore = useMemo(() => {
-    const base = difficulty === "novice" ? 48 : difficulty === "boss" ? 72 : 61;
-    const sourceBonus = run.source === "open-ai" ? 6 : 0;
-    return Math.min(base + sourceBonus + activeGate * 7, 96);
-  }, [activeGate, difficulty, run.source]);
+  const currentGate = gates[activeGate] ?? gates[0];
+  const activeFileMeta =
+    files.find((file) => file.id === activeFile) ?? files[0];
+  const completedGates = gates.filter((_, index) => isGateComplete(index)).length;
+  const ownershipScore = Math.min(
+    42 + completedGates * 12 + (testRun.status === "passed" ? 10 : 0),
+    100,
+  );
+  const openAiReady = Boolean(health?.integrations.openai);
+
+  const runLabel = useMemo(
+    () => run.run_id.slice(0, 8),
+    [run.run_id],
+  );
 
   async function handleGenerate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
     setIsGenerating(true);
+    setActiveGate(0);
+    setProofNotes({});
+    setTestRun({
+      status: "idle",
+      output: ["$ npm test -- --quest=new-run", "Quest forged. Tests queued."],
+    });
 
     try {
       const nextRun = await generateQuest({
@@ -123,6 +210,12 @@ export function QuestArena() {
         difficulty,
       });
       setRun(nextRun);
+      setCodeByFile((currentCode) => ({
+        ...currentCode,
+        route: buildRouteScaffold(nextRun.quest),
+        verifier: buildVerifierScaffold(nextRun.quest),
+        test: buildTestScaffold(nextRun.quest),
+      }));
     } catch (questError) {
       setError(
         questError instanceof Error
@@ -134,325 +227,404 @@ export function QuestArena() {
     }
   }
 
-  return (
-    <main className="min-h-screen bg-[#f5f1e8] text-ink">
-      <div className="mx-auto min-h-screen w-full max-w-[1500px] px-3 py-4 sm:px-6 lg:px-8">
-        <header className="grid gap-4 border-b border-ink/10 pb-4 lg:grid-cols-[1fr_auto]">
-          <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-md bg-ink text-sm font-black text-[#f5f1e8] shadow-[inset_0_-4px_0_rgba(255,255,255,0.12)]">
-              VQ
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs font-black uppercase tracking-[0.28em] text-ember">
-                VibeQuest
-              </p>
-              <h1 className="max-w-4xl text-balance text-xl font-black leading-none min-[420px]:text-2xl sm:text-4xl">
-                AI can write the code. You still have to own it.
-              </h1>
-            </div>
-          </div>
+  function isGateComplete(index: number) {
+    return Boolean(proofNotes[index]?.trim()) || index < activeGate;
+  }
 
-          <div className="grid min-w-0 grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center lg:justify-end">
-            <StatusPill
-              label="Core"
-              state={health ? "ready" : healthError ? "down" : "checking"}
-            />
-            <StatusPill
-              label="OpenAI"
-              state={
-                health?.integrations.openai
-                  ? "ready"
-                  : isHealthLoading
-                    ? "checking"
-                    : "fallback"
-              }
-            />
-            <StatusPill
-              label="CKB"
-              state={health?.integrations.ckb_rpc ? "ready" : "planned"}
-            />
-            <StatusPill
-              label="Fiber"
-              state={health?.integrations.fiber_rpc ? "ready" : "planned"}
-            />
+  function handleRunTests() {
+    setTestRun({
+      status: "running",
+      output: [
+        "$ npm test -- --quest=vibequest",
+        "Booting generated app sandbox...",
+        "Checking proof receipt ownership...",
+      ],
+    });
+
+    window.setTimeout(() => {
+      const hasOwnershipCheck =
+        codeByFile.route.includes("receipt.owner") ||
+        codeByFile.verifier.includes("owner") ||
+        proofNotes[activeGate]?.toLowerCase().includes("owner");
+
+      setTestRun({
+        status: hasOwnershipCheck ? "passed" : "failed",
+        output: hasOwnershipCheck
+          ? [
+              "$ npm test -- --quest=vibequest",
+              "PASS tests/unlock.test.ts",
+              "PASS verifier rejects receipt replay",
+              "PASS proof note explains the trust boundary",
+              "All gates for this stage are green.",
+            ]
+          : [
+              "$ npm test -- --quest=vibequest",
+              "FAIL tests/unlock.test.ts",
+              "Expected unpaid or replayed receipts to return 403.",
+              "Hint: add an ownership check or explain how receipt.owner is verified.",
+            ],
+      });
+    }, 700);
+  }
+
+  function handleSubmitProof() {
+    if (!proofNotes[activeGate]?.trim()) {
+      setProofNotes((currentNotes) => ({
+        ...currentNotes,
+        [activeGate]: "I verified receipt ownership before unlock.",
+      }));
+      return;
+    }
+
+    setActiveGate((currentGateIndex) =>
+      Math.min(currentGateIndex + 1, gates.length - 1),
+    );
+  }
+
+  return (
+    <main className="min-h-screen overflow-x-hidden bg-[#eef0f2] text-ink">
+      <div className="mx-auto flex min-h-screen w-full max-w-[1760px] min-w-0 flex-col overflow-x-hidden">
+        <header className="min-w-0 border-b border-ink/10 bg-white px-4 py-3 sm:px-6">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded bg-ink text-sm font-black text-white">
+                VQ
+              </div>
+              <div className="min-w-0 max-w-full">
+                <p className="text-sm font-black uppercase tracking-[0.16em] text-ink/45">
+                  VibeQuest Workbench
+                </p>
+                <h1 className="text-balance text-xl font-black leading-tight sm:text-2xl">
+                  Vibecode it, then prove you own it.
+                </h1>
+              </div>
+            </div>
+
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <StatusPill
+                label="Core"
+                state={health ? "ready" : healthError ? "down" : "checking"}
+              />
+              <StatusPill
+                label="AI"
+                state={
+                  openAiReady ? "ready" : isHealthLoading ? "checking" : "fallback"
+                }
+              />
+              <StatusPill
+                label="CKB"
+                state={health?.integrations.ckb_rpc ? "ready" : "planned"}
+              />
+              <StatusPill
+                label="Fiber"
+                state={health?.integrations.fiber_rpc ? "ready" : "planned"}
+              />
+              <span className="rounded border border-ink/10 bg-[#f7f8fa] px-3 py-2 font-mono text-xs font-bold text-ink/55">
+                {API_BASE_URL}
+              </span>
+            </div>
           </div>
 
           {healthError && (
-            <p className="rounded-md border border-ember/25 bg-ember/10 px-3 py-2 text-sm font-semibold text-ember lg:col-span-2">
+            <p className="mt-3 rounded border border-[#d84a2f]/30 bg-[#fff2ee] px-3 py-2 text-sm font-semibold text-[#a8321d]">
               {healthError}
             </p>
           )}
         </header>
 
-        <section className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)] gap-4 py-4 xl:grid-cols-[360px_minmax(0,1fr)_380px]">
-          <aside className="w-full min-w-0 max-w-full space-y-4">
-            <form
-              onSubmit={handleGenerate}
-              className="w-full min-w-0 max-w-full overflow-hidden rounded-lg border border-ink/10 bg-white shadow-[0_12px_40px_rgba(16,18,22,0.08)]"
-            >
-              <div className="border-b border-ink/10 bg-ink px-4 py-3 text-white">
-                <p className="text-xs font-black uppercase tracking-[0.24em] text-white/55">
-                  Mission Input
+        <section className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)] overflow-x-hidden xl:grid-cols-[minmax(0,320px)_minmax(0,1fr)_minmax(0,360px)]">
+          <aside className="min-w-0 max-w-full border-b border-ink/10 bg-white p-4 xl:border-b-0 xl:border-r">
+            <form onSubmit={handleGenerate} className="space-y-4">
+              <PanelTitle
+                icon={<Sparkles size={16} />}
+                kicker="Quest Forge"
+                title="Create the run"
+              />
+
+              <label className="grid min-w-0 gap-2">
+                <span className="control-label">Build request</span>
+                <textarea
+                  aria-label="Build prompt"
+                  className="min-h-36 w-full min-w-0 resize-none rounded border border-ink/15 bg-[#f7f8fa] p-3 font-mono text-sm leading-6 outline-none transition focus:border-[#2f6fed] focus:bg-white"
+                  minLength={12}
+                  value={buildPrompt}
+                  onChange={(event) => setBuildPrompt(event.target.value)}
+                />
+              </label>
+
+              <label className="grid min-w-0 gap-2">
+                <span className="control-label">Skill track</span>
+                <select
+                  className="h-11 w-full min-w-0 rounded border border-ink/15 bg-white px-3 text-sm font-bold outline-none focus:border-[#2f6fed]"
+                  value={skillTrack}
+                  onChange={(event) => setSkillTrack(event.target.value)}
+                >
+                  {tracks.map((track) => (
+                    <option key={track}>{track}</option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="min-w-0">
+                <span className="control-label">Difficulty</span>
+                <div className="mt-2 grid min-w-0 grid-cols-1 gap-1 rounded border border-ink/10 bg-[#f7f8fa] p-1">
+                  {(["novice", "builder", "boss"] as Difficulty[]).map(
+                    (level) => (
+                      <button
+                        className={`h-9 min-w-0 rounded px-2 text-xs font-black capitalize transition ${
+                          difficulty === level
+                            ? "bg-ink text-white shadow-sm"
+                            : "text-ink/55 hover:bg-white hover:text-ink"
+                        }`}
+                        key={level}
+                        onClick={() => setDifficulty(level)}
+                        type="button"
+                      >
+                        {level}
+                      </button>
+                    ),
+                  )}
+                </div>
+              </div>
+
+              <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-2">
+                <button
+                    className="inline-flex h-11 min-w-0 items-center justify-center gap-2 rounded bg-[#2f6fed] px-4 text-sm font-black text-white transition hover:bg-ink disabled:cursor-not-allowed disabled:bg-ink/35"
+                  disabled={isGenerating}
+                  type="submit"
+                >
+                  {isGenerating ? (
+                    <RefreshCw className="animate-spin" size={16} />
+                  ) : (
+                    <Bot size={16} />
+                  )}
+                  Forge
+                </button>
+                <button
+                  aria-label="Load next template"
+                  className="grid h-11 w-11 place-items-center rounded border border-ink/15 bg-white text-ink transition hover:border-ink/35"
+                  onClick={() => setBuildPrompt(nextTemplate(buildPrompt))}
+                  title="Load next template"
+                  type="button"
+                >
+                  <RefreshCw size={16} />
+                </button>
+              </div>
+
+              {error && (
+                <p className="rounded border border-[#d84a2f]/25 bg-[#fff2ee] px-3 py-2 text-sm font-semibold text-[#a8321d]">
+                  {error}
                 </p>
-                <h2 className="mt-1 text-xl font-black">Vibecode a run</h2>
-              </div>
-
-              <div className="space-y-4 p-4">
-                <label className="grid min-w-0 gap-2">
-                  <span className="text-xs font-black uppercase tracking-[0.18em] text-ink/45">
-                    Build request
-                  </span>
-                  <textarea
-                    aria-label="Build prompt"
-                    className="min-h-44 w-full max-w-full resize-none rounded-md border border-ink/15 bg-[#f8f5ee] p-4 font-mono text-sm leading-6 text-ink outline-none transition focus:border-ember focus:bg-white"
-                    minLength={12}
-                    value={buildPrompt}
-                    onChange={(event) => setBuildPrompt(event.target.value)}
-                  />
-                </label>
-
-                <label className="grid min-w-0 gap-2">
-                  <span className="text-xs font-black uppercase tracking-[0.18em] text-ink/45">
-                    Skill track
-                  </span>
-                  <select
-                    className="h-12 w-full max-w-full rounded-md border border-ink/15 bg-white px-3 text-sm font-black text-ink outline-none transition focus:border-ember"
-                    value={skillTrack}
-                    onChange={(event) => setSkillTrack(event.target.value)}
-                  >
-                    {tracks.map((track) => (
-                      <option key={track}>{track}</option>
-                    ))}
-                  </select>
-                </label>
-
-                <div>
-                  <p className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-ink/45">
-                    Difficulty
-                  </p>
-                  <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2 sm:grid-cols-3">
-                    {(["novice", "builder", "boss"] as Difficulty[]).map(
-                      (level) => (
-                        <button
-                          className={`h-11 rounded-md border text-xs font-black capitalize transition ${
-                            difficulty === level
-                              ? "border-ink bg-ink text-white"
-                              : "border-ink/15 bg-white text-ink/60 hover:border-ink/35 hover:text-ink"
-                          }`}
-                          key={level}
-                          onClick={() => setDifficulty(level)}
-                          type="button"
-                        >
-                          {level}
-                        </button>
-                      ),
-                    )}
-                  </div>
-                </div>
-
-                <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-                  <button
-                    className="h-12 rounded-md bg-ember px-4 text-sm font-black text-white transition hover:bg-ink disabled:cursor-not-allowed disabled:bg-ink/35"
-                    disabled={isGenerating}
-                    type="submit"
-                  >
-                    {isGenerating ? "Forging..." : "Forge Quest"}
-                  </button>
-                  <button
-                    className="h-12 min-w-0 rounded-md border border-ink/15 bg-white px-4 text-sm font-black text-ink transition hover:border-ink/35"
-                    onClick={() => setBuildPrompt(nextTemplate(buildPrompt))}
-                    type="button"
-                  >
-                    Template
-                  </button>
-                </div>
-
-                {error && (
-                  <p className="rounded-md border border-ember/25 bg-ember/10 px-3 py-2 text-sm font-semibold text-ember">
-                    {error}
-                  </p>
-                )}
-              </div>
+              )}
             </form>
 
-            <section className="w-full min-w-0 rounded-lg border border-ink/10 bg-white p-4">
-              <p className="text-xs font-black uppercase tracking-[0.22em] text-ink/45">
-                Runtime
+            <div className="mt-6 space-y-3">
+              <PanelTitle
+                icon={<BookOpen size={16} />}
+                kicker="Quest"
+                title={run.quest.title}
+              />
+              <p className="text-sm font-semibold leading-6 text-ink/65">
+                {run.quest.premise}
               </p>
-              <p className="mt-2 break-all font-mono text-xs leading-5 text-ink/65">
-                {API_BASE_URL}
-              </p>
-            </section>
-          </aside>
-
-          <section className="w-full min-w-0 max-w-full space-y-4">
-            <div className="w-full min-w-0 overflow-hidden rounded-lg border border-ink/10 bg-ink text-white shadow-[0_18px_60px_rgba(16,18,22,0.18)]">
-              <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 border-b border-white/10 p-5 lg:grid-cols-[minmax(0,1fr)_220px]">
-                <div className="min-w-0">
-                  <div className="mb-3 flex flex-wrap items-center gap-2">
-                    <span className="rounded bg-white/10 px-2.5 py-1 text-xs font-black uppercase tracking-[0.16em] text-white/65">
-                      {skillTrack}
-                    </span>
-                    <span className="rounded bg-ember px-2.5 py-1 text-xs font-black uppercase tracking-[0.16em]">
-                      {sourceLabel(run.source)}
-                    </span>
-                  </div>
-                  <h2 className="text-balance text-3xl font-black leading-none sm:text-5xl">
-                    {run.quest.title}
-                  </h2>
-                  <p className="mt-4 max-w-3xl text-pretty text-base font-semibold leading-7 text-white/68">
-                    {run.quest.premise}
-                  </p>
-                </div>
-
-                <div className="min-w-0 rounded-md border border-white/10 bg-white/[0.06] p-4">
-                  <p className="text-xs font-black uppercase tracking-[0.2em] text-white/45">
-                    Ownership
-                  </p>
-                  <div className="mt-3 flex items-end gap-2">
-                    <span className="text-5xl font-black leading-none">
-                      {ownershipScore}
-                    </span>
-                    <span className="pb-1 text-sm font-black text-white/45">
-                      %
-                    </span>
-                  </div>
-                  <div className="mt-4 h-2 overflow-hidden rounded bg-white/10">
-                    <div
-                      className="h-full rounded bg-ember transition-all"
-                      style={{ width: `${ownershipScore}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid gap-px bg-white/10 sm:grid-cols-2 lg:grid-cols-4">
-                {skillStats.map(([label, value]) => (
-                <div className="min-w-0 bg-ink px-5 py-4" key={label}>
-                    <p className="text-xs font-black uppercase tracking-[0.16em] text-white/38">
-                      {label}
-                    </p>
-                    <p className="mt-1 text-2xl font-black">{value}</p>
-                  </div>
-                ))}
+              <div className="rounded border border-ink/10 bg-[#f7f8fa] p-3">
+                <p className="control-label">Objective</p>
+                <p className="mt-2 overflow-wrap-anywhere text-sm font-bold leading-6">
+                  {run.quest.build_objective}
+                </p>
               </div>
             </div>
+          </aside>
 
-            <section className="w-full min-w-0 rounded-lg border border-ink/10 bg-white p-4 shadow-[0_12px_40px_rgba(16,18,22,0.06)]">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-black uppercase tracking-[0.22em] text-wire">
-                    Comprehension Route
-                  </p>
-                  <h3 className="text-2xl font-black">Escape black box mode</h3>
-                </div>
-                <span className="rounded-md bg-[#eef3ff] px-3 py-2 text-xs font-black text-wire">
-                  Gate {activeGate + 1} / {gates.length}
-                </span>
-              </div>
+          <section className="min-w-0 max-w-full overflow-hidden bg-[#f7f8fa]">
+            <div className="grid border-b border-ink/10 bg-white md:grid-cols-4">
+              <Metric icon={<Gauge size={17} />} label="Ownership" value={`${ownershipScore}%`} />
+              <Metric icon={<FlaskConical size={17} />} label="Tests" value={testLabel(testRun.status)} />
+              <Metric icon={<ShieldCheck size={17} />} label="Gate" value={`${activeGate + 1}/${gates.length}`} />
+              <Metric icon={<Coins size={17} />} label="Reward" value={difficulty === "boss" ? "8x" : "5x"} />
+            </div>
 
-              <div className="grid min-w-0 gap-3">
-                {gates.map((gate, index) => (
-                  <GateRow
-                    active={index === activeGate}
-                    complete={index < activeGate}
-                    gate={gate}
-                    index={index}
-                    key={`${gate}-${index}`}
-                  />
-                ))}
-              </div>
-            </section>
-
-            <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-              <div className="min-w-0 rounded-lg border border-ink/10 bg-[#111318] p-4 text-[#f6f1e8]">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <p className="text-xs font-black uppercase tracking-[0.22em] text-white/38">
-                    Code Chamber
-                  </p>
-                  <span className="rounded bg-signal px-2.5 py-1 text-xs font-black">
-                    {isGenerating ? "Compiling mission" : "Ready"}
-                  </span>
-                </div>
-                <pre className="min-h-56 overflow-hidden whitespace-pre-wrap rounded-md border border-white/10 bg-black/24 p-4 font-mono text-xs leading-6 text-white/78">
-{`mission("${run.quest.title}");
-objective("${run.quest.build_objective}");
-
-current_gate("${roomNames[activeGate]}");
-prove("${gates[activeGate]}");
-
-boss("${run.quest.boss_fight}");`}
-                </pre>
-              </div>
-
-              <div className="min-w-0 rounded-lg border border-ink/10 bg-white p-4">
-                <p className="text-xs font-black uppercase tracking-[0.22em] text-signal">
-                  Proof Rail
-                </p>
-                <h3 className="mt-2 text-2xl font-black">What unlocks</h3>
-                <div className="mt-4 space-y-3 text-sm font-semibold leading-6 text-ink/70">
-                  <p>{run.quest.reward_logic}</p>
-                  {run.quest.ckb_fiber_hooks.map((hook) => (
-                    <p className="border-l-4 border-signal/40 pl-3" key={hook}>
-                      {hook}
-                    </p>
+            <div className="grid min-h-[calc(100vh-156px)] grid-rows-[auto_minmax(0,1fr)_auto]">
+              <div className="border-b border-ink/10 bg-white p-3">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  {files.map((file) => (
+                    <button
+                      className={`inline-flex h-9 max-w-full items-center gap-2 rounded px-3 text-xs font-black transition ${
+                        activeFile === file.id
+                          ? "bg-ink text-white"
+                          : "bg-[#f0f2f5] text-ink/60 hover:bg-white hover:text-ink"
+                      }`}
+                      key={file.id}
+                      onClick={() => setActiveFile(file.id)}
+                      type="button"
+                    >
+                      <FileCode2 size={14} />
+                      <span className="truncate">{file.name}</span>
+                    </button>
                   ))}
                 </div>
               </div>
-            </section>
+
+              <div className="grid min-h-0 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px]">
+                <div className="min-w-0 border-b border-ink/10 lg:border-b-0 lg:border-r">
+                  <div className="flex items-center justify-between border-b border-ink/10 bg-[#11151b] px-4 py-3 text-white">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Terminal size={16} />
+                      <span className="truncate font-mono text-xs font-bold">
+                        {activeFileMeta.name}
+                      </span>
+                    </div>
+                    <span className="rounded bg-white/10 px-2 py-1 text-[11px] font-black uppercase text-white/55">
+                      {activeFileMeta.language}
+                    </span>
+                  </div>
+                  <textarea
+                    aria-label="Code editor"
+                    className="h-[420px] w-full resize-none border-0 bg-[#11151b] p-4 font-mono text-[13px] leading-6 text-[#eef4ff] outline-none lg:h-full"
+                    spellCheck={false}
+                    value={codeByFile[activeFile]}
+                    onChange={(event) =>
+                      setCodeByFile((currentCode) => ({
+                        ...currentCode,
+                        [activeFile]: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
+
+                <aside className="min-w-0 bg-white p-4">
+                  <PanelTitle
+                    icon={<ShieldCheck size={16} />}
+                    kicker={`Gate ${activeGate + 1}`}
+                    title={gateNames[activeGate] ?? "Prove"}
+                  />
+                  <p className="mt-3 text-sm font-semibold leading-6 text-ink/68">
+                    {currentGate}
+                  </p>
+
+                  <label className="mt-5 grid gap-2">
+                    <span className="control-label">Your proof note</span>
+                    <textarea
+                      aria-label="Proof note"
+                      className="min-h-36 resize-none rounded border border-ink/15 bg-[#f7f8fa] p-3 text-sm font-semibold leading-6 outline-none focus:border-[#2f6fed] focus:bg-white"
+                      placeholder="Explain the trust boundary, bug, patch, or attack in your own words."
+                      value={proofNotes[activeGate] ?? ""}
+                      onChange={(event) =>
+                        setProofNotes((currentNotes) => ({
+                          ...currentNotes,
+                          [activeGate]: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <button
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded border border-ink/15 bg-white text-sm font-black text-ink transition hover:border-ink/40"
+                      onClick={handleSubmitProof}
+                      type="button"
+                    >
+                      <Save size={15} />
+                      Proof
+                    </button>
+                    <button
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded bg-[#20a779] text-sm font-black text-white transition hover:bg-ink"
+                      onClick={handleRunTests}
+                      type="button"
+                    >
+                      <Play size={15} />
+                      Test
+                    </button>
+                  </div>
+
+                  <div className="mt-5 rounded border border-ink/10 bg-[#11151b] p-3 text-white">
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-xs font-black uppercase tracking-[0.16em] text-white/45">
+                        Test output
+                      </span>
+                      <TestBadge status={testRun.status} />
+                    </div>
+                    <pre className="max-h-56 overflow-auto whitespace-pre-wrap font-mono text-xs leading-5 text-white/72">
+                      {testRun.output.join("\n")}
+                    </pre>
+                  </div>
+                </aside>
+              </div>
+
+              <div className="border-t border-ink/10 bg-white p-3">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="min-w-0">
+                    <p className="control-label">Boss fight</p>
+                    <p className="mt-1 truncate text-sm font-bold text-ink/75">
+                      {run.quest.boss_fight}
+                    </p>
+                  </div>
+                  <button
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded bg-ink px-4 text-sm font-black text-white transition hover:bg-[#2f6fed]"
+                    onClick={() => setActiveGate(gates.length - 1)}
+                    type="button"
+                  >
+                    <Trophy size={16} />
+                    Jump to Ship
+                  </button>
+                </div>
+              </div>
+            </div>
           </section>
 
-          <aside className="w-full min-w-0 max-w-full space-y-4">
-            <section className="w-full min-w-0 rounded-lg border border-ink/10 bg-white p-4 shadow-[0_12px_40px_rgba(16,18,22,0.06)]">
-              <p className="text-xs font-black uppercase tracking-[0.22em] text-plum">
-                Active Run
-              </p>
-              <h3 className="mt-2 text-pretty text-2xl font-black leading-tight">
-                {run.quest.build_objective}
-              </h3>
-              <div className="mt-4 rounded-md bg-[#f8f5ee] p-3">
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-ink/40">
-                  Run ID
-                </p>
-                <p className="mt-1 break-all font-mono text-xs leading-5 text-ink/62">
-                  {run.run_id}
-                </p>
-              </div>
-            </section>
+          <aside className="min-w-0 max-w-full border-t border-ink/10 bg-white p-4 xl:border-l xl:border-t-0">
+            <PanelTitle
+              icon={<ChevronRight size={16} />}
+              kicker={`Run ${runLabel}`}
+              title="Progress"
+            />
 
-            <section className="w-full min-w-0 overflow-hidden rounded-lg border border-ink/10 bg-ember text-white shadow-[0_18px_60px_rgba(239,91,42,0.22)]">
-              <div className="p-4">
-                <p className="text-xs font-black uppercase tracking-[0.22em] text-white/55">
-                  Boss Fight
-                </p>
-                <h3 className="mt-2 text-pretty text-3xl font-black leading-tight">
-                  {run.quest.boss_fight}
-                </h3>
-              </div>
-              <div className="grid grid-cols-1 border-t border-white/18 min-[360px]:grid-cols-3">
-                <BossStat
-                  label="min"
-                  value={difficulty === "boss" ? "12" : "18"}
-                />
-                <BossStat
-                  label="hints"
-                  value={difficulty === "novice" ? "5" : "3"}
-                />
-                <BossStat
-                  label="reward"
-                  value={difficulty === "boss" ? "8x" : "5x"}
-                />
-              </div>
-            </section>
+            <div className="mt-4 space-y-2">
+              {gates.map((gate, index) => (
+                <button
+                  className={`w-full rounded border p-3 text-left transition ${
+                    activeGate === index
+                      ? "border-[#2f6fed] bg-[#eff5ff]"
+                      : isGateComplete(index)
+                        ? "border-[#20a779]/25 bg-[#effbf6]"
+                        : "border-ink/10 bg-white hover:border-ink/30"
+                  }`}
+                  key={`${gate}-${index}`}
+                  onClick={() => setActiveGate(index)}
+                  type="button"
+                >
+                  <div className="flex items-center gap-2">
+                    <GateIcon complete={isGateComplete(index)} active={activeGate === index} />
+                    <span className="text-sm font-black">
+                      {gateNames[index] ?? "Gate"} {index + 1}
+                    </span>
+                  </div>
+                    <p className="overflow-wrap-anywhere mt-2 line-clamp-2 text-xs font-semibold leading-5 text-ink/58">
+                    {gate}
+                  </p>
+                </button>
+              ))}
+            </div>
 
-            <section className="w-full min-w-0 rounded-lg border border-ink/10 bg-white p-4">
-              <p className="text-xs font-black uppercase tracking-[0.22em] text-ink/45">
-                Rule of the run
+            <section className="mt-5 rounded border border-ink/10 bg-[#f7f8fa] p-4">
+              <PanelTitle
+                icon={<Coins size={16} />}
+                kicker="Unlocks"
+                title="Proof rail"
+              />
+              <p className="mt-3 text-sm font-semibold leading-6 text-ink/65">
+                {run.quest.reward_logic}
               </p>
-              <p className="mt-2 text-pretty text-lg font-black leading-7">
-                AI may generate the code, but rewards unlock only when you can
-                explain and defend the diff.
-              </p>
+              <div className="mt-3 space-y-2">
+                {run.quest.ckb_fiber_hooks.map((hook) => (
+                  <p
+                    className="overflow-wrap-anywhere rounded border border-ink/10 bg-white p-3 text-xs font-bold leading-5 text-ink/65"
+                    key={hook}
+                  >
+                    {hook}
+                  </p>
+                ))}
+              </div>
             </section>
           </aside>
         </section>
@@ -461,61 +633,116 @@ boss("${run.quest.boss_fight}");`}
   );
 }
 
-function GateRow({
-  active,
-  complete,
-  gate,
-  index,
+function PanelTitle({
+  icon,
+  kicker,
+  title,
 }: {
-  active: boolean;
-  complete: boolean;
-  gate: string;
-  index: number;
+  icon: React.ReactNode;
+  kicker: string;
+  title: string;
 }) {
   return (
-    <article
-      className={`grid min-w-0 gap-3 rounded-md border p-3 transition md:grid-cols-[112px_minmax(0,1fr)_auto] md:items-center ${
-        active
-          ? "border-ember/35 bg-ember/8 shadow-[inset_4px_0_0_#ef5b2a]"
-          : complete
-            ? "border-signal/20 bg-signal/8"
-            : "border-ink/10 bg-[#f8f5ee]"
-      }`}
-    >
-      <div>
-        <p className="text-xs font-black uppercase tracking-[0.16em] text-ink/38">
-          Gate {index + 1}
-        </p>
-        <h4 className="mt-1 text-lg font-black">
-          {roomNames[index] ?? "Prove"}
-        </h4>
-      </div>
-      <p className="min-w-0 text-sm font-semibold leading-6 text-ink/68">
-        {gate}
+    <div className="min-w-0">
+      <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-ink/42">
+        {icon}
+        {kicker}
       </p>
-      <span
-        className={`w-fit rounded px-2.5 py-1 text-xs font-black ${
-          complete
-            ? "bg-signal text-white"
-            : active
-              ? "bg-ember text-white"
-              : "bg-white text-ink/45"
-        }`}
-      >
-        {complete ? "Cleared" : active ? "Live" : "Locked"}
-      </span>
-    </article>
+      <h2 className="mt-1 truncate text-lg font-black">{title}</h2>
+    </div>
   );
 }
 
-function BossStat({ label, value }: { label: string; value: string }) {
+function Metric({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) {
   return (
-    <div className="border-b border-white/18 p-4 last:border-b-0 min-[360px]:border-b-0 min-[360px]:border-r min-[360px]:last:border-r-0">
-      <p className="text-3xl font-black leading-none">{value}</p>
-      <p className="mt-1 text-xs font-black uppercase tracking-[0.16em] text-white/55">
-        {label}
-      </p>
+    <div className="flex min-w-0 items-center gap-3 border-b border-ink/10 px-4 py-3 last:border-b-0 md:border-b-0 md:border-r md:last:border-r-0">
+      <div className="grid h-9 w-9 shrink-0 place-items-center rounded bg-[#f0f2f5] text-ink/65">
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <p className="control-label">{label}</p>
+        <p className="truncate text-lg font-black">{value}</p>
+      </div>
     </div>
+  );
+}
+
+function GateIcon({ active, complete }: { active: boolean; complete: boolean }) {
+  if (complete) {
+    return (
+      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#20a779] text-white">
+        <Check size={13} strokeWidth={3} />
+      </span>
+    );
+  }
+
+  if (active) {
+    return (
+      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#2f6fed] text-white">
+        <ChevronRight size={13} strokeWidth={3} />
+      </span>
+    );
+  }
+
+  return <span className="h-5 w-5 shrink-0 rounded-full border border-ink/20" />;
+}
+
+function TestBadge({ status }: { status: TestRun["status"] }) {
+  const label =
+    status === "passed"
+      ? "passed"
+      : status === "failed"
+        ? "failed"
+        : status === "running"
+          ? "running"
+          : "idle";
+
+  const className =
+    status === "passed"
+      ? "bg-[#20a779] text-white"
+      : status === "failed"
+        ? "bg-[#d84a2f] text-white"
+        : status === "running"
+          ? "bg-[#2f6fed] text-white"
+          : "bg-white/10 text-white/55";
+
+  return (
+    <span className={`rounded px-2 py-1 text-[11px] font-black uppercase ${className}`}>
+      {label}
+    </span>
+  );
+}
+
+function StatusPill({
+  label,
+  state,
+}: {
+  label: string;
+  state: "ready" | "fallback" | "planned" | "checking" | "down";
+}) {
+  const className =
+    state === "ready"
+      ? "border-[#20a779]/30 bg-[#effbf6] text-[#087451]"
+      : state === "down"
+        ? "border-[#d84a2f]/30 bg-[#fff2ee] text-[#a8321d]"
+        : state === "fallback"
+          ? "border-[#d99b2b]/35 bg-[#fff7e8] text-[#8a5c00]"
+          : "border-ink/10 bg-[#f7f8fa] text-ink/55";
+
+  return (
+    <span
+      className={`inline-flex h-9 items-center rounded border px-3 text-xs font-black ${className}`}
+    >
+      {label}: {state}
+    </span>
   );
 }
 
@@ -534,31 +761,78 @@ function nextTemplate(currentPrompt: string) {
   return templates[(currentIndex + 1) % templates.length];
 }
 
-function sourceLabel(source: GenerateQuestResponse["source"]) {
-  return source === "open-ai" ? "OpenAI" : "Fallback";
+function testLabel(status: TestRun["status"]) {
+  if (status === "passed") {
+    return "green";
+  }
+
+  if (status === "failed") {
+    return "red";
+  }
+
+  if (status === "running") {
+    return "running";
+  }
+
+  return "idle";
 }
 
-function StatusPill({
-  label,
-  state,
-}: {
-  label: string;
-  state: "ready" | "fallback" | "planned" | "checking" | "down";
-}) {
-  const className =
-    state === "ready"
-      ? "bg-signal text-white"
-      : state === "down"
-        ? "bg-ember text-white"
-        : state === "fallback"
-          ? "bg-wire text-white"
-          : "bg-white text-ink/58";
+function buildRouteScaffold(quest: QuestBlueprint) {
+  return `export async function POST(request: Request) {
+  const body = await request.json();
+  const receipt = await getReceipt(body.receiptId);
 
-  return (
-    <span
-      className={`min-w-0 truncate rounded-md px-3 py-2 text-center text-xs font-black ${className}`}
-    >
-      {label}: {state}
-    </span>
-  );
+  // Quest: ${quest.title}
+  // Gate: explain, patch, test, attack, ship.
+  if (!receipt || receipt.status !== "paid") {
+    return Response.json({ error: "payment required" }, { status: 403 });
+  }
+
+  if (receipt.owner !== body.userId) {
+    return Response.json({ error: "receipt owner mismatch" }, { status: 403 });
+  }
+
+  return Response.json({
+    unlocked: true,
+    articleId: body.articleId,
+    proofCell: receipt.cell,
+  });
+}`;
+}
+
+function buildVerifierScaffold(quest: QuestBlueprint) {
+  return `export function verifyReceipt(receipt: Receipt, user: User) {
+  if (!receipt || receipt.status !== "paid") {
+    return false;
+  }
+
+  const ownsReceipt = receipt.owner === user.id;
+  const paidEnough = receipt.amount >= priceFor(user.plan);
+
+  // Boss: ${quest.boss_fight}
+  return ownsReceipt && paidEnough;
+}`;
+}
+
+function buildTestScaffold(quest: QuestBlueprint) {
+  return `test("blocks unpaid reads", async () => {
+  const response = await unlockArticle({
+    articleId: "guide-001",
+    receiptId: "unpaid-receipt",
+  });
+
+  expect(response.status).toBe(403);
+});
+
+test("blocks replayed proof receipts", async () => {
+  const response = await unlockArticle({
+    articleId: "guide-001",
+    receiptId: "paid-but-owned-by-someone-else",
+  });
+
+  expect(response.status).toBe(403);
+});
+
+// Quest objective:
+// ${quest.build_objective}`;
 }
