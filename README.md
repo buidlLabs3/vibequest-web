@@ -2,6 +2,8 @@
 
 Next.js + TypeScript frontend for VibeQuest: a gamified vibecoding arena where builders generate real apps with AI, then unlock shipping by explaining, debugging, testing, attacking, and remixing the generated code.
 
+Requires Node.js `>=20.19.0`.
+
 ## Run
 
 ```bash
@@ -23,10 +25,11 @@ npm run dev
 
 - Build prompt arena for AI-assisted app generation.
 - Live quest generation through `vibequest-core`.
+- CKB wallet binding through CCC; quest runs require a signed `CkbSecp256k1` proof.
 - Comprehension meter that blocks rewards until the user proves understanding.
 - Challenge rooms: Explain, Debug, Remix, Attack, Ship.
 - Quest board for CKB/Fiber builder tracks.
-- Proof rail for future CKB credentials and Fiber rewards.
+- Proof rail for CKB credentials and Fiber rewards; reward claiming stays locked until backend RPCs are configured.
 
 ## Paired Backend
 

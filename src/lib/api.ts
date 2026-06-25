@@ -8,24 +8,57 @@ export type QuestBlueprint = {
   boss_fight: string;
   reward_logic: string;
   ckb_fiber_hooks: string[];
+  workbench_files: WorkbenchFile[];
+};
+
+export type WorkbenchFile = {
+  path: string;
+  language: string;
+  content: string;
 };
 
 export type GenerateQuestResponse = {
   run_id: string;
-  source: "open-ai" | "fallback";
+  source: "open-ai";
+  wallet: WalletBinding;
   quest: QuestBlueprint;
+  ship_requirements: ShipRequirements;
+};
+
+export type WalletBinding = {
+  address: string;
+  identity: string;
+  sign_type: string;
+  message: string;
+};
+
+export type WalletProof = {
+  address: string;
+  message: string;
+  signature: {
+    signature: string;
+    identity: string;
+    sign_type: string;
+  };
+};
+
+export type ShipRequirements = {
+  ckb_rpc_ready: boolean;
+  fiber_rpc_ready: boolean;
+  can_claim_rewards: boolean;
 };
 
 export type HealthResponse = {
   service: string;
   status: "ok";
   environment: string;
-  ai_layer: "open-ai" | "fallback";
+  ai_layer: "open-ai";
   integrations: {
     openai: boolean;
     ckb_rpc: boolean;
     fiber_rpc: boolean;
   };
+  missing: string[];
   timestamp: string;
 };
 
@@ -33,6 +66,7 @@ export type GenerateQuestRequest = {
   build_prompt: string;
   skill_track: string;
   difficulty: Difficulty;
+  wallet: WalletProof;
 };
 
 export const API_BASE_URL =

@@ -1,5 +1,7 @@
-import { QuestArena } from "@/components/quest-arena";
+"use client";
+
+import { VibeQuestApp } from "@/components/vibequest-app";
 
 export default function Home() {
-  return <QuestArena />;
+  return <VibeQuestApp />;
 }
