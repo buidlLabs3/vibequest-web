@@ -4,7 +4,6 @@ import { ccc, useCcc, useSigner } from "@ckb-ccc/connector-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import DashboardView from "@/components/DashboardView";
-import InfrastructureView from "@/components/InfrastructureView";
 import LandingPage from "@/components/LandingPage";
 import Navbar from "@/components/Navbar";
 import QuestRunView from "@/components/QuestRunView";
@@ -32,7 +31,6 @@ type TabId =
   | "dashboard"
   | "workbench"
   | "quest-run"
-  | "infrastructure"
   | "ship-gate";
 
 const DEFAULT_BUILD_REQUEST =
@@ -50,7 +48,6 @@ const TAB_IDS = new Set<TabId>([
   "dashboard",
   "workbench",
   "quest-run",
-  "infrastructure",
   "ship-gate",
 ]);
 
@@ -82,7 +79,6 @@ export function VibeQuestWorkbench() {
   const [sessionReady, setSessionReady] = useState(false);
   const [walletModalOpen, setWalletModalOpen] = useState(false);
   const [health, setHealth] = useState<HealthResponse | null>(null);
-  const [healthError, setHealthError] = useState<string | null>(null);
   const [walletProof, setWalletProof] = useState<WalletProof | null>(null);
   const [questData, setQuestData] = useState<QuestData | null>(null);
   const [generating, setGenerating] = useState(false);
@@ -184,12 +180,9 @@ export function VibeQuestWorkbench() {
     try {
       const nextHealth = await getHealth();
       setHealth(nextHealth);
-      setHealthError(null);
       return nextHealth;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Backend health check failed.";
+    } catch {
       setHealth(null);
-      setHealthError(message);
       return null;
     }
   }, []);
@@ -327,9 +320,6 @@ export function VibeQuestWorkbench() {
     [health, refreshHealth, walletProof],
   );
 
-  const handleResolveInfrastructure = useCallback(() => {
-    void refreshHealth();
-  }, [refreshHealth]);
 
   const handleShipCargo = useCallback(() => {
     setShipped(true);
@@ -403,7 +393,6 @@ export function VibeQuestWorkbench() {
             walletLabel={walletProof ? shortAddress(walletProof.address) : undefined}
             proofLogs={proofLogs}
             health={health}
-            healthError={healthError}
             questData={enhancedQuestData}
             gates={gates}
             bossFightSolved={bossFightSolved}
@@ -411,7 +400,6 @@ export function VibeQuestWorkbench() {
             onConnectWallet={() => setWalletModalOpen(true)}
             onOpenQuestRun={() => setActiveTab("quest-run")}
             onOpenWorkbench={() => setActiveTab("workbench")}
-            onOpenInfrastructure={() => setActiveTab("infrastructure")}
             onOpenShipGate={() => setActiveTab("ship-gate")}
           />
         )}
@@ -428,18 +416,6 @@ export function VibeQuestWorkbench() {
             setDifficulty={setDifficulty}
             setActiveTab={setActiveTabStrict}
             generationError={generationError}
-          />
-        )}
-
-        {activeTab === "infrastructure" && (
-          <InfrastructureView
-            ckbRpcOnline={infrastructureReady}
-            onResolveCkbRpc={handleResolveInfrastructure}
-            health={health}
-            healthError={healthError}
-            onRefreshHealth={refreshHealth}
-            onOpenQuestRun={() => setActiveTab("quest-run")}
-            onOpenWorkbench={() => setActiveTab("workbench")}
           />
         )}
 
@@ -473,6 +449,10 @@ export function VibeQuestWorkbench() {
 function parseTabId(value: string | null): TabId | null {
   if (!value) {
     return null;
+  }
+
+  if (value === "infrastructure") {
+    return "workbench";
   }
 
   return TAB_IDS.has(value as TabId) ? (value as TabId) : null;

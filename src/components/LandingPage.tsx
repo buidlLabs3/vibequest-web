@@ -247,14 +247,12 @@ export default function LandingPage({
           <div className="grid grid-cols-2 md:grid-cols-3 gap-12">
             <div className="flex flex-col gap-3">
               <span className="font-mono text-xs text-white uppercase opacity-40">System</span>
-              <button onClick={onEnterWorkbench} className="text-left text-sm text-on-surface-variant hover:text-electric-blue transition-colors">Infrastructure</button>
               <button onClick={onEnterWorkbench} className="text-left text-sm text-on-surface-variant hover:text-electric-blue transition-colors">Verification</button>
               <button onClick={onEnterWorkbench} className="text-left text-sm text-on-surface-variant hover:text-electric-blue transition-colors">Security</button>
             </div>
             <div className="flex flex-col gap-3">
               <span className="font-mono text-xs text-white uppercase opacity-40">Resources</span>
               <button onClick={onEnterWorkbench} className="text-left text-sm text-on-surface-variant hover:text-electric-blue transition-colors">Quest Docs</button>
-              <button onClick={onEnterWorkbench} className="text-left text-sm text-on-surface-variant hover:text-electric-blue transition-colors">Infrastructure</button>
               <a href="https://github.com/buidlLabs3/vibequest-web" className="text-sm text-on-surface-variant hover:text-electric-blue transition-colors">GitHub</a>
             </div>
             <div className="flex flex-col gap-3">

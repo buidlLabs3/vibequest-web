@@ -115,7 +115,7 @@ export default function WorkbenchView({
     }
   }, [workspaceFiles, selectedFile, setSelectedFile]);
 
-  // Sync identity and infrastructure gate values
+  // Sync wallet and backend readiness values
   useEffect(() => {
     setGates(prev => prev.map(gate => {
       if (gate.id === "identity") {
@@ -627,7 +627,7 @@ export default function WorkbenchView({
                 </button>
                 {!isAllGatesPassed && (
                   <span className="text-[9px] font-mono text-red-400 text-center block mt-1.5 leading-tight">
-                    * Wallet, infrastructure, and generated file checks must pass before shipping!
+                    * Wallet, backend readiness, and generated file checks must pass before shipping!
                   </span>
                 )}
               </div>

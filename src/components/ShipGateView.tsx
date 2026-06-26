@@ -38,7 +38,7 @@ export default function ShipGateView({
           Ship Gate Command
         </h1>
         <p className="text-on-surface-variant text-sm mt-1 max-w-xl">
-          Finalize the verified quest envelope after wallet proof, infrastructure health, generated-file verification, and boss comprehension all pass.
+          Finalize the verified quest envelope after wallet proof, backend readiness, generated-file verification, and boss comprehension all pass.
         </p>
       </div>
 
@@ -110,7 +110,7 @@ export default function ShipGateView({
               />
               <CheckRow
                 passed={ckbRpcOnline}
-                title="Backend Infrastructure"
+                title="Backend Readiness"
                 description="OpenAI, CKB RPC, and Fiber RPC are ready through vibequest-core."
               />
               <CheckRow

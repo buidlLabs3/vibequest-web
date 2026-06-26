@@ -22,7 +22,6 @@ export default function Navbar({
     { id: "dashboard", label: "Dashboard" },
     { id: "workbench", label: "Workbench" },
     { id: "quest-run", label: "Quest Run" },
-    { id: "infrastructure", label: "Infrastructure" },
     { id: "ship-gate", label: "Ship Gate" },
   ];
 

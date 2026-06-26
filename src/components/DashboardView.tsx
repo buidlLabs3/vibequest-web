@@ -5,7 +5,6 @@ import {
   CheckCircle,
   Clock,
   Code2,
-  GitBranch,
   LayoutDashboard,
   ShieldCheck,
   Wallet,
@@ -20,7 +19,6 @@ interface DashboardViewProps {
   walletLabel?: string;
   proofLogs: ProofLog[];
   health: HealthResponse | null;
-  healthError: string | null;
   questData: QuestData | null;
   gates: VerificationGate[];
   bossFightSolved: boolean;
@@ -28,7 +26,6 @@ interface DashboardViewProps {
   onConnectWallet: () => void;
   onOpenQuestRun: () => void;
   onOpenWorkbench: () => void;
-  onOpenInfrastructure: () => void;
   onOpenShipGate: () => void;
 }
 
@@ -37,7 +34,6 @@ export default function DashboardView({
   walletLabel,
   proofLogs,
   health,
-  healthError,
   questData,
   gates,
   bossFightSolved,
@@ -45,7 +41,6 @@ export default function DashboardView({
   onConnectWallet,
   onOpenQuestRun,
   onOpenWorkbench,
-  onOpenInfrastructure,
   onOpenShipGate,
 }: DashboardViewProps) {
   const infraReady = Boolean(
@@ -56,7 +51,6 @@ export default function DashboardView({
     walletBound,
     proofLogs,
     infraReady,
-    healthError,
     questData,
     passedGates,
     gateCount: gates.length,
@@ -73,7 +67,7 @@ export default function DashboardView({
             Dashboard
           </h1>
           <p className="mt-1 max-w-xl text-sm text-on-surface-variant">
-            Your VibeQuest activity hub: wallet proof, quest run, infrastructure, gates, and shipping state in one place.
+            Your VibeQuest activity hub: wallet proof, quest run, generated workspace checks, and shipping state in one place.
           </p>
         </div>
         <button
@@ -85,7 +79,7 @@ export default function DashboardView({
         </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <MetricCard
           icon={<Wallet className="h-5 w-5 text-electric-blue" />}
           label="Wallet Proof"
@@ -94,15 +88,6 @@ export default function DashboardView({
           ready={walletBound}
           actionLabel={walletBound ? "Manage" : "Connect"}
           onAction={onConnectWallet}
-        />
-        <MetricCard
-          icon={<GitBranch className="h-5 w-5 text-cyber-green" />}
-          label="Infrastructure"
-          value={infraReady ? "Ready" : "Blocked"}
-          detail={healthError ?? (health?.missing.length ? health.missing.join(", ") : "Core, OpenAI, CKB, Fiber")}
-          ready={infraReady}
-          actionLabel="Open"
-          onAction={onOpenInfrastructure}
         />
         <MetricCard
           icon={<Code2 className="h-5 w-5 text-warning-amber" />}
@@ -240,7 +225,6 @@ function buildActivities({
   walletBound,
   proofLogs,
   infraReady,
-  healthError,
   questData,
   passedGates,
   gateCount,
@@ -250,7 +234,6 @@ function buildActivities({
   walletBound: boolean;
   proofLogs: ProofLog[];
   infraReady: boolean;
-  healthError: string | null;
   questData: QuestData | null;
   passedGates: number;
   gateCount: number;
@@ -275,8 +258,8 @@ function buildActivities({
     },
     {
       id: "infra",
-      title: infraReady ? "Infrastructure ready" : "Infrastructure blocked",
-      description: infraReady ? "OpenAI, CKB RPC, and Fiber RPC are reachable." : healthError ?? "Open infrastructure to inspect missing services.",
+      title: infraReady ? "Backend ready" : "Backend blocked",
+      description: infraReady ? "OpenAI, CKB RPC, and Fiber RPC are reachable." : "Backend services are not ready yet.",
       time: "live",
       ready: infraReady,
     },
