@@ -37,6 +37,21 @@ type TabId =
 const DEFAULT_BUILD_REQUEST =
   "Build a Fiber-powered paid content app with CKB proof receipts, a creator payout split, and a test that blocks unpaid reads.";
 
+const STORAGE_KEYS = {
+  activeTab: "vibequest.activeTab",
+  walletProof: "vibequest.walletProof",
+  proofLogs: "vibequest.proofLogs",
+} as const;
+
+const TAB_IDS = new Set<TabId>([
+  "landing",
+  "workbench",
+  "wallet-proof",
+  "quest-run",
+  "infrastructure",
+  "ship-gate",
+]);
+
 const EMPTY_GATES: VerificationGate[] = [
   {
     id: "identity",
@@ -62,6 +77,7 @@ export function VibeQuestWorkbench() {
   const { open } = useCcc();
   const signer = useSigner();
   const [activeTab, setActiveTab] = useState<TabId>("landing");
+  const [sessionReady, setSessionReady] = useState(false);
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [healthError, setHealthError] = useState<string | null>(null);
   const [walletProof, setWalletProof] = useState<WalletProof | null>(null);
@@ -83,6 +99,82 @@ export function VibeQuestWorkbench() {
       health.integrations.fiber_rpc,
   );
   const walletBound = Boolean(walletProof);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const restoredTab = parseTabId(window.location.hash.slice(1)) ?? parseTabId(window.localStorage.getItem(STORAGE_KEYS.activeTab));
+    const restoredWalletProof = parseWalletProof(window.localStorage.getItem(STORAGE_KEYS.walletProof));
+    const restoredProofLogs = parseProofLogs(window.localStorage.getItem(STORAGE_KEYS.proofLogs));
+
+    if (restoredTab) {
+      setActiveTab(restoredTab);
+    }
+
+    if (restoredWalletProof) {
+      setWalletProof(restoredWalletProof);
+    }
+
+    if (restoredProofLogs.length > 0) {
+      setProofLogs(restoredProofLogs);
+    }
+
+    setSessionReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!sessionReady || typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(STORAGE_KEYS.activeTab, activeTab);
+    const nextHash = `#${activeTab}`;
+    if (window.location.hash !== nextHash) {
+      window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${nextHash}`);
+    }
+  }, [activeTab, sessionReady]);
+
+  useEffect(() => {
+    if (!sessionReady || typeof window === "undefined") {
+      return;
+    }
+
+    if (walletProof) {
+      window.localStorage.setItem(STORAGE_KEYS.walletProof, JSON.stringify(walletProof));
+    } else {
+      window.localStorage.removeItem(STORAGE_KEYS.walletProof);
+    }
+  }, [sessionReady, walletProof]);
+
+  useEffect(() => {
+    if (!sessionReady || typeof window === "undefined") {
+      return;
+    }
+
+    if (proofLogs.length > 0) {
+      window.localStorage.setItem(STORAGE_KEYS.proofLogs, JSON.stringify(proofLogs));
+    } else {
+      window.localStorage.removeItem(STORAGE_KEYS.proofLogs);
+    }
+  }, [proofLogs, sessionReady]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const handleHashChange = () => {
+      const nextTab = parseTabId(window.location.hash.slice(1));
+      if (nextTab) {
+        setActiveTab(nextTab);
+      }
+    };
+
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
+  }, []);
 
   const refreshHealth = useCallback(async () => {
     try {
@@ -158,6 +250,7 @@ export function VibeQuestWorkbench() {
 
   const unbindWalletProof = useCallback(() => {
     setWalletProof(null);
+    setProofLogs([]);
     setQuestData(null);
     setSelectedFile(null);
     setBossFightSolved(false);
@@ -318,6 +411,8 @@ export function VibeQuestWorkbench() {
             health={health}
             healthError={healthError}
             onRefreshHealth={refreshHealth}
+            onOpenQuestRun={() => setActiveTab("quest-run")}
+            onOpenWorkbench={() => setActiveTab("workbench")}
           />
         )}
 
@@ -335,6 +430,60 @@ export function VibeQuestWorkbench() {
       </main>
     </div>
   );
+}
+
+function parseTabId(value: string | null): TabId | null {
+  if (!value) {
+    return null;
+  }
+
+  return TAB_IDS.has(value as TabId) ? (value as TabId) : null;
+}
+
+function parseWalletProof(value: string | null): WalletProof | null {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(value) as WalletProof;
+    if (
+      typeof parsed.address === "string" &&
+      typeof parsed.message === "string" &&
+      typeof parsed.signature?.signature === "string" &&
+      typeof parsed.signature.identity === "string" &&
+      typeof parsed.signature.sign_type === "string"
+    ) {
+      return parsed;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function parseProofLogs(value: string | null): ProofLog[] {
+  if (!value) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value) as ProofLog[];
+    if (Array.isArray(parsed)) {
+      return parsed.filter(
+        (log) =>
+          typeof log.id === "string" &&
+          typeof log.type === "string" &&
+          typeof log.timestamp === "string" &&
+          typeof log.status === "string",
+      );
+    }
+  } catch {
+    return [];
+  }
+
+  return [];
 }
 
 function normalizeDifficulty(value: string): Difficulty {

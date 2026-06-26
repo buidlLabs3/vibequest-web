@@ -189,7 +189,7 @@ export default function WorkbenchView({
   const isAllGatesPassed = gates.every(g => g.isCompleted);
 
   return (
-    <div className="bg-[#0B0C0E] text-on-surface font-sans p-4 md:p-8 max-w-7xl mx-auto flex flex-col gap-8 min-h-screen">
+    <div className="bg-[#0B0C0E] text-on-surface font-sans p-4 md:p-8 max-w-[1500px] mx-auto flex flex-col gap-8 min-h-screen">
       {/* Top Banner / Breadcrumbs */}
       <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-glass-border pb-6 gap-4">
         <div>
@@ -209,9 +209,9 @@ export default function WorkbenchView({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
         {/* LEFT COLUMN: QUEST BUILD / PROMPT PANEL (span 4) */}
-        <div className="lg:col-span-4 flex flex-col gap-6">
+        <div className="xl:col-span-3 flex flex-col gap-6">
           <div className="bg-[#16181D] border border-glass-border rounded-xl p-5 flex flex-col gap-5">
             <div className="flex items-center gap-2 border-b border-glass-border pb-3">
               <span className="w-2.5 h-2.5 rounded-full bg-electric-blue"></span>
@@ -387,8 +387,8 @@ export default function WorkbenchView({
         </div>
 
         {/* RIGHT COLUMN: CODE EXPLORER & INTERACTIVE EDITOR (span 8) */}
-        <div className="lg:col-span-8 flex flex-col gap-6">
-          <div className="bg-[#16181D] border border-glass-border rounded-xl flex flex-col h-[520px] overflow-hidden">
+        <div className="xl:col-span-9 flex flex-col gap-6">
+          <div className="bg-[#16181D] border border-glass-border rounded-xl flex flex-col min-h-[720px] xl:min-h-[760px] overflow-hidden">
             {/* Workspace Explorer Header */}
             <div className="bg-[#1D212A] border-b border-glass-border px-5 py-3 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -412,7 +412,7 @@ export default function WorkbenchView({
             {/* Inner Workspace split panel: File list left, Editor right */}
             <div className="flex flex-1 overflow-hidden">
               {/* File list */}
-              <div className="w-48 bg-[#0F1115] border-r border-glass-border overflow-y-auto p-2 flex flex-col gap-1">
+              <div className="w-56 lg:w-64 bg-[#0F1115] border-r border-glass-border overflow-y-auto p-2 flex flex-col gap-1">
                 <div className="text-[10px] font-mono text-on-surface-variant uppercase font-semibold px-2.5 py-2">
                   Files
                 </div>
@@ -448,15 +448,15 @@ export default function WorkbenchView({
                 </div>
 
                 {/* File Contents */}
-                <div className="flex-1 overflow-y-auto p-4 font-mono text-xs leading-relaxed text-gray-300 select-text">
+                <div className="flex-1 overflow-y-auto p-5 md:p-6 font-mono text-[13px] leading-6 text-gray-300 select-text">
                   {selectedFile ? (
                     <pre className="whitespace-pre-wrap">
                       {selectedFile.content.split("\n").map((line, idx) => (
                         <div key={idx} className="flex hover:bg-white/5 px-2 rounded">
-                          <span className="w-8 text-on-surface-variant opacity-30 select-none border-r border-glass-border/30 pr-2 mr-3 text-right">
+                          <span className="w-10 text-on-surface-variant opacity-30 select-none border-r border-glass-border/30 pr-3 mr-4 text-right">
                             {idx + 1}
                           </span>
-                          <span className="text-[#A9B2C3] font-mono">{line}</span>
+                          <span className="text-[#A9B2C3] font-mono break-words">{line}</span>
                         </div>
                       ))}
                     </pre>
@@ -470,7 +470,7 @@ export default function WorkbenchView({
 
                 {/* Selected file description / context */}
                 {selectedFile?.description && (
-                  <div className="border-t border-glass-border/70 p-3 bg-[#0F1115] text-[11px] font-mono text-on-surface-variant flex items-start gap-2">
+                  <div className="border-t border-glass-border/70 p-4 bg-[#0F1115] text-xs font-mono text-on-surface-variant flex items-start gap-2">
                     <span className="text-electric-blue font-bold uppercase shrink-0">CONTEXT:</span>
                     <span>{selectedFile.description}</span>
                   </div>
@@ -481,7 +481,7 @@ export default function WorkbenchView({
 
           {/* Verification Console Terminal logs */}
           {testConsoleLogs.length > 0 && (
-            <div className="bg-[#0B0C0E] border border-glass-border rounded-xl p-4 font-mono text-xs text-cyber-green flex flex-col gap-1 h-[180px] overflow-y-auto shadow-inner">
+            <div className="bg-[#0B0C0E] border border-glass-border rounded-xl p-4 font-mono text-xs text-cyber-green flex flex-col gap-1 h-[220px] overflow-y-auto shadow-inner">
               <div className="text-[10px] uppercase font-bold text-on-surface-variant border-b border-glass-border pb-1.5 mb-2 flex justify-between">
                 <span>Verification Emulator Sandbox Terminal</span>
                 <span>SYSTEM STATE: RUNNING</span>

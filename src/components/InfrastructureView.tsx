@@ -9,6 +9,7 @@ import {
   Workflow,
   GitBranch,
   Play,
+  ArrowRight,
 } from "lucide-react";
 
 import type { HealthResponse } from "@/lib/api";
@@ -19,6 +20,8 @@ interface InfrastructureViewProps {
   health: HealthResponse | null;
   healthError: string | null;
   onRefreshHealth: () => Promise<HealthResponse | null>;
+  onOpenQuestRun: () => void;
+  onOpenWorkbench: () => void;
 }
 
 export default function InfrastructureView({
@@ -27,6 +30,8 @@ export default function InfrastructureView({
   health,
   healthError,
   onRefreshHealth,
+  onOpenQuestRun,
+  onOpenWorkbench,
 }: InfrastructureViewProps) {
   const [resyncing, setResyncing] = useState(false);
   const [syncLogs, setSyncLogs] = useState<string[]>([]);
@@ -111,7 +116,7 @@ export default function InfrastructureView({
   };
 
   return (
-    <div className="bg-[#0B0C0E] text-on-surface font-sans p-4 md:p-8 max-w-7xl mx-auto flex flex-col gap-8 min-h-screen">
+    <div className="bg-[#0B0C0E] text-on-surface font-sans p-4 md:p-8 max-w-[1400px] mx-auto flex flex-col gap-8 min-h-screen">
       <div className="border-b border-glass-border pb-6">
         <h1 className="text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
           <Layers className="text-electric-blue w-8 h-8" />
@@ -197,7 +202,7 @@ export default function InfrastructureView({
             </div>
 
             <p className="text-xs text-on-surface-variant leading-relaxed">
-              This panel reads actual backend health. Use refresh after changing environment variables or redeploying vibequest-core.
+              This is the pre-flight gate for generation. When every service is green, move straight into a quest run or open the current workbench.
             </p>
 
             {!allOnline && health?.missing.length ? (
@@ -209,7 +214,34 @@ export default function InfrastructureView({
               </div>
             ) : null}
 
-            {!allOnline ? (
+            {allOnline ? (
+              <div className="flex flex-col gap-3">
+                <div className="p-4 bg-cyber-green/10 border border-cyber-green/20 rounded-lg flex items-start gap-3">
+                  <CheckCircle className="text-cyber-green w-5 h-5 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-mono text-xs text-cyber-green font-semibold uppercase block">
+                      Generation stack ready
+                    </span>
+                    <span className="text-xs text-on-surface-variant leading-relaxed block mt-1">
+                      OpenAI, CKB RPC, and Fiber RPC are reachable. You can generate a live quest now.
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={onOpenQuestRun}
+                  className="w-full py-3.5 bg-cyber-green hover:brightness-110 text-black font-extrabold text-xs uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  Start Quest Run
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={onOpenWorkbench}
+                  className="w-full py-3 border border-electric-blue/30 text-electric-blue hover:bg-electric-blue/5 font-bold text-xs uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  Open Workbench
+                </button>
+              </div>
+            ) : (
               <button
                 onClick={() => void handleForceResync()}
                 disabled={resyncing}
@@ -227,13 +259,6 @@ export default function InfrastructureView({
                   </>
                 )}
               </button>
-            ) : (
-              <div className="p-4 bg-cyber-green/10 border border-cyber-green/20 rounded-lg flex items-center gap-3">
-                <CheckCircle className="text-cyber-green w-5 h-5 flex-shrink-0" />
-                <span className="font-mono text-xs text-cyber-green font-semibold">
-                  CORE, OPENAI, CKB RPC, AND FIBER RPC ARE READY.
-                </span>
-              </div>
             )}
           </div>
         </div>
