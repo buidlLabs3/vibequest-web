@@ -3,12 +3,13 @@
 import { useCcc, useSigner } from "@ckb-ccc/connector-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import DashboardView from "@/components/DashboardView";
 import InfrastructureView from "@/components/InfrastructureView";
 import LandingPage from "@/components/LandingPage";
 import Navbar from "@/components/Navbar";
 import QuestRunView from "@/components/QuestRunView";
 import ShipGateView from "@/components/ShipGateView";
-import WalletProofView from "@/components/WalletProofView";
+import WalletConnectModal from "@/components/WalletConnectModal";
 import WorkbenchView from "@/components/WorkbenchView";
 import {
   generateQuest,
@@ -28,8 +29,8 @@ import type {
 
 type TabId =
   | "landing"
+  | "dashboard"
   | "workbench"
-  | "wallet-proof"
   | "quest-run"
   | "infrastructure"
   | "ship-gate";
@@ -45,8 +46,8 @@ const STORAGE_KEYS = {
 
 const TAB_IDS = new Set<TabId>([
   "landing",
+  "dashboard",
   "workbench",
-  "wallet-proof",
   "quest-run",
   "infrastructure",
   "ship-gate",
@@ -78,6 +79,7 @@ export function VibeQuestWorkbench() {
   const signer = useSigner();
   const [activeTab, setActiveTab] = useState<TabId>("landing");
   const [sessionReady, setSessionReady] = useState(false);
+  const [walletModalOpen, setWalletModalOpen] = useState(false);
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [healthError, setHealthError] = useState<string | null>(null);
   const [walletProof, setWalletProof] = useState<WalletProof | null>(null);
@@ -263,7 +265,7 @@ export function VibeQuestWorkbench() {
 
       if (!walletProof) {
         setGenerationError("Sign a CKB wallet proof before generating a quest.");
-        setActiveTab("wallet-proof");
+        setWalletModalOpen(true);
         return false;
       }
 
@@ -339,7 +341,7 @@ export function VibeQuestWorkbench() {
         activeTab={activeTab}
         setActiveTab={setActiveTabStrict}
         walletBound={walletBound}
-        onConnectWallet={() => setActiveTab("wallet-proof")}
+        onConnectWallet={() => setWalletModalOpen(true)}
         onDisconnectWallet={unbindWalletProof}
         walletLabel={walletProof ? shortAddress(walletProof.address) : undefined}
       />
@@ -349,14 +351,14 @@ export function VibeQuestWorkbench() {
           <LandingPage
             onEnterWorkbench={() => setActiveTab("workbench")}
             walletBound={walletBound}
-            onConnectWallet={() => setActiveTab("wallet-proof")}
+            onConnectWallet={() => setWalletModalOpen(true)}
           />
         )}
 
         {activeTab === "workbench" && (
           <WorkbenchView
             walletBound={walletBound}
-            onConnectWallet={() => setActiveTab("wallet-proof")}
+            onConnectWallet={() => setWalletModalOpen(true)}
             questData={enhancedQuestData}
             onGenerateQuest={handleGenerateQuest}
             generating={generating}
@@ -379,14 +381,22 @@ export function VibeQuestWorkbench() {
           />
         )}
 
-        {activeTab === "wallet-proof" && (
-          <WalletProofView
+        {activeTab === "dashboard" && (
+          <DashboardView
             walletBound={walletBound}
-            onBindWallet={bindWalletProof}
-            onUnbindWallet={unbindWalletProof}
+            walletLabel={walletProof ? shortAddress(walletProof.address) : undefined}
             proofLogs={proofLogs}
-            address={walletProof?.address}
-            signerReady={Boolean(signer)}
+            health={health}
+            healthError={healthError}
+            questData={enhancedQuestData}
+            gates={gates}
+            bossFightSolved={bossFightSolved}
+            shipped={shipped}
+            onConnectWallet={() => setWalletModalOpen(true)}
+            onOpenQuestRun={() => setActiveTab("quest-run")}
+            onOpenWorkbench={() => setActiveTab("workbench")}
+            onOpenInfrastructure={() => setActiveTab("infrastructure")}
+            onOpenShipGate={() => setActiveTab("ship-gate")}
           />
         )}
 
@@ -428,6 +438,17 @@ export function VibeQuestWorkbench() {
           />
         )}
       </main>
+
+      <WalletConnectModal
+        open={walletModalOpen}
+        walletBound={walletBound}
+        onBindWallet={bindWalletProof}
+        onUnbindWallet={unbindWalletProof}
+        onClose={() => setWalletModalOpen(false)}
+        proofLogs={proofLogs}
+        address={walletProof?.address}
+        signerReady={Boolean(signer)}
+      />
     </div>
   );
 }

@@ -19,8 +19,8 @@ export default function Navbar({
 }: NavbarProps) {
   const tabs = [
     { id: "landing", label: "Overview" },
+    { id: "dashboard", label: "Dashboard" },
     { id: "workbench", label: "Workbench" },
-    { id: "wallet-proof", label: "Wallet Proof" },
     { id: "quest-run", label: "Quest Run" },
     { id: "infrastructure", label: "Infrastructure" },
     { id: "ship-gate", label: "Ship Gate" },
@@ -77,7 +77,7 @@ export default function Navbar({
               <div className="hidden sm:flex flex-col items-end text-right">
                 <span className="text-xs font-mono text-cyber-green flex items-center gap-1.5 uppercase tracking-wider font-semibold">
                   <span className="w-1.5 h-1.5 rounded-full bg-cyber-green animate-ping"></span>
-                  Signer Bound
+Wallet Bound
                 </span>
                 <span className="text-[10px] font-mono opacity-50">
                   {walletLabel ?? "CKB signer"}
@@ -96,7 +96,7 @@ export default function Navbar({
               className="px-3.5 py-1.5 rounded-lg border border-warning-amber/30 bg-warning-amber/5 text-warning-amber hover:bg-warning-amber/10 text-xs font-mono transition-colors flex items-center gap-2 cursor-pointer"
             >
               <Wallet className="w-3.5 h-3.5 animate-pulse" />
-              <span>No Signer Proof</span>
+              <span>Connect Wallet</span>
             </button>
           )}
         </div>
