@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { 
   Play, 
   Terminal as TermIcon, 
@@ -8,12 +8,12 @@ import {
   AlertCircle, 
   Cpu, 
   Award,
-  ChevronRight,
-  Shield,
   RefreshCw,
   Clock
 } from "lucide-react";
 import { QuestData, WorkbenchFile, VerificationGate } from "@/lib/workbench-types";
+
+const EMPTY_WORKSPACE_FILES: WorkbenchFile[] = [];
 
 interface WorkbenchViewProps {
   walletBound: boolean;
@@ -100,22 +100,20 @@ export default function WorkbenchView({
   const [bossFeedback, setBossFeedback] = useState<string | null>(null);
   const [showBossHint, setShowBossHint] = useState(false);
 
-  const initialFiles = useMemo<WorkbenchFile[]>(() => [
-    {
-      name: "README.md",
-      path: "README.md",
-      content: "# VibeQuest Workbench\n\nNo backend quest has been generated yet. Bind a CKB signer, confirm infrastructure health, then generate a quest to load real workbench files from vibequest-core.\n\nRequired gates:\n1. Wallet proof bound by CKB secp256k1 signature.\n2. OpenAI, CKB RPC, and Fiber RPC ready through vibequest-core.\n3. Generated files include proof, test, and denial-path signals.",
-      description: "Start here, then generate a live quest from vibequest-core."
-    }
-  ], []);
-
-  const workspaceFiles = questData?.files || initialFiles;
+  const workspaceFiles = questData?.files ?? EMPTY_WORKSPACE_FILES;
 
   useEffect(() => {
-    if (!selectedFile && workspaceFiles.length > 0) {
+    if (workspaceFiles.length === 0) {
+      if (selectedFile) {
+        setSelectedFile(null);
+      }
+      return;
+    }
+
+    if (!selectedFile || !workspaceFiles.some((file) => file.path === selectedFile.path)) {
       setSelectedFile(workspaceFiles[0]);
     }
-  }, [questData, workspaceFiles, selectedFile, setSelectedFile]);
+  }, [workspaceFiles, selectedFile, setSelectedFile]);
 
   // Sync identity and infrastructure gate values
   useEffect(() => {
@@ -281,7 +279,7 @@ export default function WorkbenchView({
                 onChange={(e) => setBuildRequest(e.target.value)}
                 rows={5}
                 className="w-full bg-[#0B0C0E] border border-glass-border rounded-lg p-3 font-mono text-xs text-white focus:outline-none focus:border-electric-blue resize-none leading-relaxed"
-                placeholder="Describe your desired smart contract logic..."
+                placeholder="Describe the CKB/Fiber app, proof behavior, and tests you want generated..."
               />
             </div>
 
@@ -311,60 +309,45 @@ export default function WorkbenchView({
             )}
           </div>
 
-          {/* Verification Gates Board */}
-          <div className="bg-[#16181D] border border-glass-border rounded-xl p-5 flex flex-col gap-4">
-            <div className="flex items-center gap-2 border-b border-glass-border pb-3 justify-between">
-              <div className="flex items-center gap-2">
-                <Shield className="text-cyber-green w-5 h-5" />
-                <h2 className="text-sm font-mono font-bold uppercase tracking-wider text-white">
-                  Verification Gates
-                </h2>
-              </div>
-              <span className="font-mono text-xs text-cyber-green">
-                {gates.filter(g => g.isCompleted).length}/3 PASSED
-              </span>
-            </div>
-
-            <div className="flex flex-col gap-3">
-              {gates.map((gate) => (
-                <div
-                  key={gate.id}
-                  className={`p-3.5 rounded-lg border flex items-start gap-3 transition-colors ${
-                    gate.isCompleted
-                      ? "bg-cyber-green/5 border-cyber-green/20"
-                      : "bg-[#0B0C0E]/50 border-glass-border"
-                  }`}
-                >
-                  <div className="mt-0.5">
-                    {gate.isCompleted ? (
-                      <CheckCircle className="w-4 h-4 text-cyber-green" />
-                    ) : (
-                      <AlertCircle className="w-4 h-4 text-on-surface-variant animate-pulse" />
-                    )}
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-bold font-mono text-white flex items-center gap-2">
-                      {gate.name}
-                      {gate.isCompleted && <span className="text-[9px] font-mono text-cyber-green bg-cyber-green/10 px-1 py-0.5 rounded">PASSED</span>}
-                    </h3>
-                    <p className="text-[11px] text-on-surface-variant leading-normal mt-0.5">
-                      {gate.description}
-                    </p>
-                    {gate.id === "identity" && !walletBound && (
-                      <button
-                        onClick={onConnectWallet}
-                        className="text-[10px] text-electric-blue hover:underline font-mono uppercase mt-1.5 flex items-center gap-1 cursor-pointer"
-                      >
-                        Sign Proof Message <ChevronRight className="w-3 h-3" />
-                      </button>
-                    )}
-                  </div>
+          {questData && (
+            <div className="bg-[#16181D] border border-glass-border rounded-xl p-5 flex flex-col gap-4">
+              <div className="flex items-center gap-2 border-b border-glass-border pb-3 justify-between">
+                <div className="flex items-center gap-2">
+                  <TermIcon className="text-cyber-green w-5 h-5" />
+                  <h2 className="text-sm font-mono font-bold uppercase tracking-wider text-white">
+                    Active Quest Checks
+                  </h2>
                 </div>
-              ))}
-            </div>
+                <span
+                  className={
+                    gates.find((gate) => gate.id === "verification")?.isCompleted
+                      ? "font-mono text-xs text-cyber-green"
+                      : "font-mono text-xs text-warning-amber"
+                  }
+                >
+                  {gates.find((gate) => gate.id === "verification")?.isCompleted ? "VERIFIED" : "PENDING"}
+                </span>
+              </div>
 
-            {/* Run verification action */}
-            {questData && (
+              <div className="flex flex-col gap-3">
+                {questData.gates.map((gate, index) => (
+                  <div
+                    key={gate.id}
+                    className="p-3 rounded-lg border border-glass-border bg-[#0B0C0E]/50 flex gap-3"
+                  >
+                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-electric-blue/10 text-[10px] font-mono font-bold text-electric-blue">
+                      {index + 1}
+                    </span>
+                    <div className="min-w-0">
+                      <h3 className="text-xs font-bold font-mono text-white">{gate.name}</h3>
+                      <p className="text-[11px] text-on-surface-variant leading-normal mt-1">
+                        {gate.description}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
               <button
                 onClick={handleRunTests}
                 disabled={runningTests || !walletBound || !ckbRpcOnline}
@@ -373,17 +356,17 @@ export default function WorkbenchView({
                 {runningTests ? (
                   <>
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    Executing Test Suite...
+                    Checking Generated Files...
                   </>
                 ) : (
                   <>
                     <TermIcon className="w-3.5 h-3.5" />
-                    Run Verification Tests
+                    Run Generated File Checks
                   </>
                 )}
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* RIGHT COLUMN: CODE EXPLORER & INTERACTIVE EDITOR (span 8) */}
@@ -416,23 +399,29 @@ export default function WorkbenchView({
                 <div className="text-[10px] font-mono text-on-surface-variant uppercase font-semibold px-2.5 py-2">
                   Files
                 </div>
-                {workspaceFiles.map((file) => {
-                  const isActive = selectedFile?.path === file.path;
-                  return (
-                    <button
-                      key={file.path}
-                      onClick={() => setSelectedFile(file)}
-                      className={`w-full text-left px-2.5 py-1.5 rounded font-mono text-xs flex items-center gap-2 transition-all cursor-pointer ${
-                        isActive
-                          ? "bg-electric-blue/10 text-electric-blue font-semibold border-l-2 border-electric-blue"
-                          : "text-on-surface-variant hover:text-white hover:bg-white/5"
-                      }`}
-                    >
-                      <FileCode className="w-3.5 h-3.5 flex-shrink-0" />
-                      <span className="truncate">{file.name}</span>
-                    </button>
-                  );
-                })}
+                {workspaceFiles.length > 0 ? (
+                  workspaceFiles.map((file) => {
+                    const isActive = selectedFile?.path === file.path;
+                    return (
+                      <button
+                        key={file.path}
+                        onClick={() => setSelectedFile(file)}
+                        className={
+                          isActive
+                            ? "w-full text-left px-2.5 py-1.5 rounded font-mono text-xs flex items-center gap-2 transition-all cursor-pointer bg-electric-blue/10 text-electric-blue font-semibold border-l-2 border-electric-blue"
+                            : "w-full text-left px-2.5 py-1.5 rounded font-mono text-xs flex items-center gap-2 transition-all cursor-pointer text-on-surface-variant hover:text-white hover:bg-white/5"
+                        }
+                      >
+                        <FileCode className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span className="truncate">{file.name}</span>
+                      </button>
+                    );
+                  })
+                ) : (
+                  <div className="rounded-lg border border-dashed border-glass-border p-3 font-mono text-[11px] leading-relaxed text-on-surface-variant">
+                    No generated files yet.
+                  </div>
+                )}
               </div>
 
               {/* Editor panel */}
@@ -461,20 +450,21 @@ export default function WorkbenchView({
                       ))}
                     </pre>
                   ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-on-surface-variant gap-2 opacity-50">
-                      <TermIcon className="w-8 h-8" />
-                      <span className="text-xs">Select a file to view code.</span>
+                    <div className="h-full flex flex-col items-center justify-center text-center text-on-surface-variant gap-3 px-6">
+                      <TermIcon className="w-8 h-8 opacity-60" />
+                      <span className="text-xs font-mono uppercase tracking-wider text-white">No active generated workspace</span>
+                      <span className="max-w-md text-xs leading-relaxed">Connect a CKB signer, then generate a quest to load backend-created files here.</span>
+                      {!walletBound && (
+                        <button
+                          onClick={onConnectWallet}
+                          className="mt-2 rounded-lg border border-electric-blue/40 px-4 py-2 font-mono text-xs font-bold uppercase text-electric-blue hover:bg-electric-blue/10"
+                        >
+                          Connect Wallet
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
-
-                {/* Selected file description / context */}
-                {selectedFile?.description && (
-                  <div className="border-t border-glass-border/70 p-4 bg-[#0F1115] text-xs font-mono text-on-surface-variant flex items-start gap-2">
-                    <span className="text-electric-blue font-bold uppercase shrink-0">CONTEXT:</span>
-                    <span>{selectedFile.description}</span>
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -483,7 +473,7 @@ export default function WorkbenchView({
           {testConsoleLogs.length > 0 && (
             <div className="bg-[#0B0C0E] border border-glass-border rounded-xl p-4 font-mono text-xs text-cyber-green flex flex-col gap-1 h-[220px] overflow-y-auto shadow-inner">
               <div className="text-[10px] uppercase font-bold text-on-surface-variant border-b border-glass-border pb-1.5 mb-2 flex justify-between">
-                <span>Verification Emulator Sandbox Terminal</span>
+                <span>Generated File Check Terminal</span>
                 <span>SYSTEM STATE: RUNNING</span>
               </div>
               {testConsoleLogs.map((log, index) => (
@@ -637,7 +627,7 @@ export default function WorkbenchView({
                 </button>
                 {!isAllGatesPassed && (
                   <span className="text-[9px] font-mono text-red-400 text-center block mt-1.5 leading-tight">
-                    * All Verification Gates must be completed before shipping!
+                    * Wallet, infrastructure, and generated file checks must pass before shipping!
                   </span>
                 )}
               </div>

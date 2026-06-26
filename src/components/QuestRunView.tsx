@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   Terminal as TermIcon,
   Sliders,
@@ -6,6 +5,7 @@ import {
   ChevronRight,
   RefreshCw,
   Cpu,
+  AlertCircle,
 } from "lucide-react";
 
 interface QuestRunViewProps {
@@ -18,6 +18,7 @@ interface QuestRunViewProps {
   difficulty: string;
   setDifficulty: (diff: string) => void;
   setActiveTab: (tab: string) => void;
+  generationError?: string | null;
 }
 
 export default function QuestRunView({
@@ -30,10 +31,8 @@ export default function QuestRunView({
   difficulty,
   setDifficulty,
   setActiveTab,
+  generationError,
 }: QuestRunViewProps) {
-  const [activeSegment, setActiveSegment] = useState<"standard" | "advanced">("standard");
-  const [timeoutPeriod, setTimeoutPeriod] = useState(30);
-  const [maxGasLimit, setMaxGasLimit] = useState(150000);
 
   const promptBlocks = [
     {
@@ -86,7 +85,7 @@ export default function QuestRunView({
           Quest Compiler Dashboard
         </h1>
         <p className="text-on-surface-variant text-sm mt-1 max-w-xl">
-          Stitch prompt-based contract building blocks together, configure advanced emulated sandbox constraints, and spawn customized developer quests.
+          Compose a real CKB/Fiber build request, add focused constraints, and generate a backend quest into the workbench.
         </p>
       </div>
 
@@ -97,7 +96,7 @@ export default function QuestRunView({
             <div className="flex items-center gap-2 border-b border-glass-border pb-3">
               <Sliders className="text-electric-blue w-5 h-5" />
               <h2 className="text-sm font-mono font-bold uppercase tracking-wider text-white">
-                Stitch Prompt Blocks
+                Prompt Accelerators
               </h2>
             </div>
 
@@ -132,82 +131,25 @@ export default function QuestRunView({
               <div className="flex items-center gap-2">
                 <TermIcon className="text-cyber-green w-5 h-5 animate-pulse" />
                 <h2 className="text-sm font-mono font-bold uppercase tracking-wider text-white">
-                  Custom Generation Engine
+                  Quest Generation Engine
                 </h2>
-              </div>
-              <div className="flex gap-1.5">
-                <button
-                  onClick={() => setActiveSegment("standard")}
-                  className={`px-3 py-1 rounded font-mono text-[10px] uppercase border cursor-pointer transition-all ${
-                    activeSegment === "standard"
-                      ? "border-cyber-green bg-cyber-green/10 text-cyber-green font-bold"
-                      : "border-glass-border text-on-surface-variant"
-                  }`}
-                >
-                  Standard
-                </button>
-                <button
-                  onClick={() => setActiveSegment("advanced")}
-                  className={`px-3 py-1 rounded font-mono text-[10px] uppercase border cursor-pointer transition-all ${
-                    activeSegment === "advanced"
-                      ? "border-electric-blue bg-electric-blue/10 text-electric-blue font-bold"
-                      : "border-glass-border text-on-surface-variant"
-                  }`}
-                >
-                  Advanced
-                </button>
               </div>
             </div>
 
             {/* Custom Prompt Input */}
             <div className="flex flex-col gap-2">
               <label className="text-xs font-mono uppercase text-on-surface-variant">
-                Active Request Command Buffer
+                Build Request
               </label>
               <textarea
                 value={buildRequest}
                 onChange={(e) => setBuildRequest(e.target.value)}
                 rows={5}
                 className="w-full bg-[#0B0C0E] border border-glass-border rounded-lg p-3.5 font-mono text-xs text-cyber-green leading-relaxed focus:outline-none focus:border-cyber-green/50 resize-none shadow-inner"
-                placeholder="Compose your custom VibeQuest build requirements here..."
+                placeholder="Describe the CKB/Fiber app, proof behavior, and tests you want generated..."
               />
             </div>
 
-            {/* Advanced configurations if selected */}
-            {activeSegment === "advanced" && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-[#0A0B0E] p-4 rounded-lg border border-glass-border/60">
-                <div className="flex flex-col gap-2">
-                  <label className="text-[10px] font-mono uppercase text-on-surface-variant flex justify-between">
-                    <span>MAX EMULATION GAS LIMIT</span>
-                    <span className="text-electric-blue">{maxGasLimit.toLocaleString()} Shas</span>
-                  </label>
-                  <input
-                    type="range"
-                    min="50000"
-                    max="500000"
-                    step="10000"
-                    value={maxGasLimit}
-                    onChange={(e) => setMaxGasLimit(parseInt(e.target.value))}
-                    className="w-full accent-electric-blue h-1 bg-[#16181D] rounded-lg cursor-pointer"
-                  />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <label className="text-[10px] font-mono uppercase text-on-surface-variant flex justify-between">
-                    <span>EMULATOR TIMEOUT PERIOD</span>
-                    <span className="text-electric-blue">{timeoutPeriod} SECONDS</span>
-                  </label>
-                  <input
-                    type="range"
-                    min="10"
-                    max="120"
-                    step="5"
-                    value={timeoutPeriod}
-                    onChange={(e) => setTimeoutPeriod(parseInt(e.target.value))}
-                    className="w-full accent-electric-blue h-1 bg-[#16181D] rounded-lg cursor-pointer"
-                  />
-                </div>
-              </div>
-            )}
 
             <div className="grid grid-cols-2 gap-4">
               {/* Skill dropdown */}
@@ -247,15 +189,22 @@ export default function QuestRunView({
               {generating ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                  Compiling Sandbox...
+                  Generating Quest...
                 </>
               ) : (
                 <>
                   <Play className="w-4 h-4" />
-                  Launch Advanced Sandbox Quest
+                  Generate Live Quest
                 </>
               )}
             </button>
+
+            {generationError && (
+              <div className="rounded-lg border border-red-500/25 bg-red-500/10 p-3 text-xs leading-relaxed text-red-300 flex gap-2">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{generationError}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>

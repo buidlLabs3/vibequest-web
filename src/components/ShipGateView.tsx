@@ -115,8 +115,8 @@ export default function ShipGateView({
               />
               <CheckRow
                 passed={isAllGatesPassed}
-                title="Verification Gates"
-                description="Generated workspace proof checks have passed."
+                title="Generated Workspace Checks"
+                description="Generated files passed proof, test, and denial-path checks."
               />
               <CheckRow
                 passed={bossFightSolved}

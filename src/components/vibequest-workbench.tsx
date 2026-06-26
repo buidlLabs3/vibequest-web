@@ -56,20 +56,20 @@ const TAB_IDS = new Set<TabId>([
 const EMPTY_GATES: VerificationGate[] = [
   {
     id: "identity",
-    name: "Identity Proof Gate",
-    description: "CKB secp256k1 signer proof bound to this VibeQuest run.",
+    name: "Wallet Proof",
+    description: "A signed CKB secp256k1 wallet proof is bound to this quest session.",
     isCompleted: false,
   },
   {
     id: "infrastructure",
-    name: "Infrastructure Sync Gate",
-    description: "OpenAI, CKB RPC, and Fiber RPC are reachable through vibequest-core.",
+    name: "Backend Readiness",
+    description: "vibequest-core reports OpenAI, CKB RPC, and Fiber RPC ready.",
     isCompleted: false,
   },
   {
     id: "verification",
-    name: "Quest Code Verification",
-    description: "Explain, test, and defend the generated workbench files.",
+    name: "Generated Workspace Checks",
+    description: "Generated files pass proof, test, and denial-path checks.",
     isCompleted: false,
   },
 ];
@@ -234,7 +234,7 @@ export function VibeQuestWorkbench() {
       signature: {
         signature: signed.signature,
         identity: signed.identity,
-        sign_type: signed.signType,
+        sign_type: normalizeCkbSignType(signed.signType),
       },
     };
 
@@ -411,6 +411,7 @@ export function VibeQuestWorkbench() {
             difficulty={difficulty}
             setDifficulty={setDifficulty}
             setActiveTab={setActiveTabStrict}
+            generationError={generationError}
           />
         )}
 
@@ -475,13 +476,30 @@ function parseWalletProof(value: string | null): WalletProof | null {
       typeof parsed.signature.identity === "string" &&
       typeof parsed.signature.sign_type === "string"
     ) {
-      return parsed;
+      return {
+        ...parsed,
+        signature: {
+          ...parsed.signature,
+          sign_type: normalizeCkbSignType(parsed.signature.sign_type),
+        },
+      };
     }
   } catch {
     return null;
   }
 
   return null;
+}
+
+function normalizeCkbSignType(value: unknown): string {
+  const raw = String(value ?? "").trim();
+  const compact = raw.replace(/[\s_.-]/g, "").toLowerCase();
+
+  if (compact.endsWith("ckbsecp256k1") || compact === "secp256k1") {
+    return "CkbSecp256k1";
+  }
+
+  return raw;
 }
 
 function parseProofLogs(value: string | null): ProofLog[] {
