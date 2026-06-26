@@ -1,12 +1,12 @@
 "use client";
 
 import { CkbWalletProvider } from "@/components/ckb-wallet-provider";
-import { QuestArena } from "@/components/quest-arena";
+import { VibeQuestWorkbench } from "@/components/vibequest-workbench";
 
 export function VibeQuestApp() {
   return (
     <CkbWalletProvider>
-      <QuestArena />
+      <VibeQuestWorkbench />
     </CkbWalletProvider>
   );
 }
