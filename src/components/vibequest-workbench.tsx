@@ -40,7 +40,8 @@ const DEFAULT_BUILD_REQUEST =
 
 const STORAGE_KEYS = {
   activeTab: "vibequest.activeTab",
-  walletProof: "vibequest.walletProof",
+  walletProof: "vibequest.walletProof.v2",
+  legacyWalletProof: "vibequest.walletProof",
   proofLogs: "vibequest.proofLogs",
 } as const;
 
@@ -109,6 +110,7 @@ export function VibeQuestWorkbench() {
 
     const restoredTab = parseTabId(window.location.hash.slice(1)) ?? parseTabId(window.localStorage.getItem(STORAGE_KEYS.activeTab));
     const restoredWalletProof = parseWalletProof(window.localStorage.getItem(STORAGE_KEYS.walletProof));
+    window.localStorage.removeItem(STORAGE_KEYS.legacyWalletProof);
     const restoredProofLogs = parseProofLogs(window.localStorage.getItem(STORAGE_KEYS.proofLogs));
 
     if (restoredTab) {
@@ -263,8 +265,9 @@ export function VibeQuestWorkbench() {
     async (request: string, track: string, rawDifficulty: string) => {
       setGenerationError(null);
 
-      if (!walletProof) {
-        setGenerationError("Sign a CKB wallet proof before generating a quest.");
+      if (!walletProof || !isCkbSecp256k1SignType(walletProof.signature.sign_type)) {
+        setWalletProof(null);
+        setGenerationError("Sign a fresh CKB secp256k1 wallet proof before generating a quest.");
         setWalletModalOpen(true);
         return false;
       }
@@ -302,7 +305,14 @@ export function VibeQuestWorkbench() {
         return true;
       } catch (error) {
         const message = error instanceof Error ? error.message : "Quest generation failed.";
-        setGenerationError(message);
+        if (message.includes("CkbSecp256k1")) {
+          setWalletProof(null);
+          setProofLogs([]);
+          setWalletModalOpen(true);
+          setGenerationError("Your saved wallet proof is not a CKB secp256k1 proof. Sign again with a CKB signer.");
+        } else {
+          setGenerationError(message);
+        }
         return false;
       } finally {
         setGenerating(false);
@@ -493,13 +503,14 @@ function parseWalletProof(value: string | null): WalletProof | null {
 
 function normalizeCkbSignType(value: unknown): string {
   const raw = String(value ?? "").trim();
-  const compact = raw.replace(/[\s_.-]/g, "").toLowerCase();
 
-  if (compact.endsWith("ckbsecp256k1") || compact === "secp256k1") {
-    return "CkbSecp256k1";
-  }
+  return isCkbSecp256k1SignType(raw) ? "CkbSecp256k1" : raw;
+}
 
-  return raw;
+function isCkbSecp256k1SignType(value: unknown): boolean {
+  const compact = String(value ?? "").trim().replace(/[\s_.-]/g, "").toLowerCase();
+
+  return compact === "ckbsecp256k1" || compact === "signersigntypeckbsecp256k1";
 }
 
 function parseProofLogs(value: string | null): ProofLog[] {
