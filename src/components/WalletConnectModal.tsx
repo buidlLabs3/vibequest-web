@@ -1,7 +1,6 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import {
   Clock,
-  Fingerprint,
   Key,
   RefreshCw,
   ShieldCheck,
@@ -33,7 +32,6 @@ export default function WalletConnectModal({
   address,
   signerReady,
 }: WalletConnectModalProps) {
-  const [selectedWalletType, setSelectedWalletType] = useState<"joyid" | "ckbsigner">("joyid");
   const [signing, setSigning] = useState(false);
   const [statusLog, setStatusLog] = useState<string[]>([]);
   const [status, setStatus] = useState<"idle" | "signing" | "success" | "error">("idle");
@@ -86,7 +84,7 @@ export default function WalletConnectModal({
             </div>
             <div>
               <h2 className="text-base font-bold text-white">Connect Wallet</h2>
-              <p className="text-xs text-on-surface-variant">Choose a signer and bind a proof for VibeQuest runs.</p>
+              <p className="text-xs text-on-surface-variant">Bind a CKB secp256k1 proof for VibeQuest runs.</p>
             </div>
           </div>
           <button
@@ -102,23 +100,18 @@ export default function WalletConnectModal({
           <div className="border-b border-glass-border p-5 lg:border-b-0 lg:border-r">
             {!walletBound ? (
               <div className="flex flex-col gap-5">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <SignerOption
-                    active={selectedWalletType === "joyid"}
-                    icon={<Fingerprint className="h-6 w-6 text-electric-blue" />}
-                    title="JoyID Passkey"
-                    description="Use a passkey signer when JoyID is available in your browser."
-                    tone="blue"
-                    onClick={() => setSelectedWalletType("joyid")}
-                  />
-                  <SignerOption
-                    active={selectedWalletType === "ckbsigner"}
-                    icon={<Key className="h-6 w-6 text-cyber-green" />}
-                    title="CKB Signer"
-                    description="Use a CKB secp256k1 signer exposed through the wallet connector."
-                    tone="green"
-                    onClick={() => setSelectedWalletType("ckbsigner")}
-                  />
+                <div className="rounded-xl border border-cyber-green/25 bg-cyber-green/5 p-5">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-cyber-green/20 bg-cyber-green/10">
+                      <Key className="h-6 w-6 text-cyber-green" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white">CKB secp256k1 signer required</h3>
+                      <p className="mt-1 text-xs leading-relaxed text-on-surface-variant">
+                        VibeQuest binds quest generation to a standard CKB secp256k1 wallet proof. Passkey/JoyID-style proofs are not accepted for this flow.
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
                 <button
@@ -126,8 +119,8 @@ export default function WalletConnectModal({
                   disabled={signing}
                   className="flex w-full items-center justify-center gap-2 rounded-xl bg-electric-blue py-4 text-sm font-extrabold uppercase tracking-wider text-[#0B0C0E] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:brightness-50"
                 >
-                  {signing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Fingerprint className="h-4 w-4" />}
-                  {signing ? "Waiting for signature..." : "Sign VibeQuest Proof"}
+                  {signing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Key className="h-4 w-4" />}
+                  {signing ? "Waiting for signature..." : signerReady ? "Sign VibeQuest Proof" : "Choose CKB Signer"}
                 </button>
               </div>
             ) : (
@@ -204,45 +197,6 @@ export default function WalletConnectModal({
         </div>
       </div>
     </div>
-  );
-}
-
-function SignerOption({
-  active,
-  icon,
-  title,
-  description,
-  tone,
-  onClick,
-}: {
-  active: boolean;
-  icon: ReactNode;
-  title: string;
-  description: string;
-  tone: "blue" | "green";
-  onClick: () => void;
-}) {
-  const activeClass = tone === "blue"
-    ? "border-electric-blue bg-electric-blue/5"
-    : "border-cyber-green bg-cyber-green/5";
-  const labelClass = tone === "blue"
-    ? "border-electric-blue/25 bg-electric-blue/15 text-electric-blue"
-    : "border-cyber-green/25 bg-cyber-green/15 text-cyber-green";
-
-  return (
-    <button
-      onClick={onClick}
-      className={"flex min-h-40 flex-col gap-4 rounded-xl border p-5 text-left transition-all hover:bg-white/5 " + (active ? activeClass : "border-glass-border")}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-white/5">{icon}</div>
-        {active && <span className={"rounded border px-2 py-0.5 font-mono text-[10px] font-bold uppercase " + labelClass}>Selected</span>}
-      </div>
-      <div>
-        <h3 className="text-sm font-bold text-white">{title}</h3>
-        <p className="mt-1 text-xs leading-relaxed text-on-surface-variant">{description}</p>
-      </div>
-    </button>
   );
 }
 

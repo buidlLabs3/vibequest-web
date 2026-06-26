@@ -1,6 +1,6 @@
 "use client";
 
-import { useCcc, useSigner } from "@ckb-ccc/connector-react";
+import { ccc, useCcc, useSigner } from "@ckb-ccc/connector-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import DashboardView from "@/components/DashboardView";
@@ -218,6 +218,12 @@ export function VibeQuestWorkbench() {
     if (!signer) {
       open();
       throw new Error("Choose a CKB secp256k1 signer, then sign the proof message.");
+    }
+
+    if (signer.signType !== ccc.SignerSignType.CkbSecp256k1) {
+      setWalletProof(null);
+      open();
+      throw new Error("VibeQuest requires a CKB secp256k1 signer. Choose a CKB signer and sign again.");
     }
 
     const address = (await signer.getRecommendedAddress()).toString();
