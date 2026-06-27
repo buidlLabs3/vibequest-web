@@ -15,6 +15,114 @@ import { QuestData, WorkbenchFile, VerificationGate } from "@/lib/workbench-type
 
 const EMPTY_WORKSPACE_FILES: WorkbenchFile[] = [];
 
+const CODE_THEME_IDS = ["nebula", "solarized", "terminal"] as const;
+
+type CodeThemeId = (typeof CODE_THEME_IDS)[number];
+type CodeTokenKind =
+  | "plain"
+  | "keyword"
+  | "type"
+  | "string"
+  | "number"
+  | "comment"
+  | "function"
+  | "property"
+  | "operator"
+  | "punctuation"
+  | "constant";
+type CodeToken = { text: string; kind: CodeTokenKind };
+type CodeTheme = {
+  label: string;
+  panel: string;
+  titleBar: string;
+  border: string;
+  gutterText: string;
+  lineHover: string;
+  activeButton: string;
+  tokens: Record<CodeTokenKind, string>;
+};
+
+const CODE_THEMES: Record<CodeThemeId, CodeTheme> = {
+  nebula: {
+    label: "Nebula",
+    panel: "bg-[#07111F]",
+    titleBar: "bg-[#0A1628]",
+    border: "border-[#18304F]",
+    gutterText: "text-[#4B647F]",
+    lineHover: "hover:bg-[#14243D]/70",
+    activeButton: "border-[#82AAFF] bg-[#82AAFF]/15 text-[#D6E4FF]",
+    tokens: {
+      plain: "text-[#D6DEFF]",
+      keyword: "text-[#82AAFF] font-semibold",
+      type: "text-[#FFCB6B]",
+      string: "text-[#C3E88D]",
+      number: "text-[#F78C6C]",
+      comment: "text-[#637777] italic",
+      function: "text-[#C792EA]",
+      property: "text-[#89DDFF]",
+      operator: "text-[#89DDFF]",
+      punctuation: "text-[#89DDFF]/70",
+      constant: "text-[#FF5370]",
+    },
+  },
+  solarized: {
+    label: "Solarized",
+    panel: "bg-[#002B36]",
+    titleBar: "bg-[#073642]",
+    border: "border-[#255764]",
+    gutterText: "text-[#586E75]",
+    lineHover: "hover:bg-[#0A3A46]",
+    activeButton: "border-[#B58900] bg-[#B58900]/15 text-[#FDF6E3]",
+    tokens: {
+      plain: "text-[#EEE8D5]",
+      keyword: "text-[#268BD2] font-semibold",
+      type: "text-[#B58900]",
+      string: "text-[#2AA198]",
+      number: "text-[#D33682]",
+      comment: "text-[#839496] italic",
+      function: "text-[#6C71C4]",
+      property: "text-[#CB4B16]",
+      operator: "text-[#93A1A1]",
+      punctuation: "text-[#93A1A1]",
+      constant: "text-[#DC322F]",
+    },
+  },
+  terminal: {
+    label: "Terminal",
+    panel: "bg-[#050807]",
+    titleBar: "bg-[#07110D]",
+    border: "border-[#123325]",
+    gutterText: "text-[#315B46]",
+    lineHover: "hover:bg-[#0E1C16]",
+    activeButton: "border-[#00FF88] bg-[#00FF88]/15 text-[#D7FFE9]",
+    tokens: {
+      plain: "text-[#D7FFE9]",
+      keyword: "text-[#00F0FF] font-semibold",
+      type: "text-[#FFD166]",
+      string: "text-[#7CFF8A]",
+      number: "text-[#FF8A65]",
+      comment: "text-[#5A876E] italic",
+      function: "text-[#C084FC]",
+      property: "text-[#70E1FF]",
+      operator: "text-[#00FF88]",
+      punctuation: "text-[#A8F5C7]",
+      constant: "text-[#FF5C8A]",
+    },
+  },
+};
+
+const TS_KEYWORDS = new Set([
+  "as", "async", "await", "break", "case", "catch", "class", "const", "continue", "default", "do", "else", "export", "extends", "finally", "for", "from", "function", "if", "import", "in", "interface", "let", "new", "of", "return", "satisfies", "switch", "throw", "try", "type", "typeof", "var", "while", "yield",
+]);
+
+const RUST_KEYWORDS = new Set([
+  "as", "async", "await", "break", "const", "continue", "crate", "else", "enum", "false", "fn", "for", "if", "impl", "in", "let", "loop", "match", "mod", "move", "mut", "pub", "ref", "return", "self", "Self", "static", "struct", "super", "trait", "true", "type", "unsafe", "use", "where", "while",
+]);
+
+const COMMON_TYPES = new Set([
+  "AccessRequest", "Array", "BigInt", "Boolean", "Error", "Map", "Number", "Promise", "Receipt", "Record", "Result", "Set", "Some", "String", "Vec", "bool", "boolean", "i32", "i64", "number", "str", "string", "u32", "u64", "usize", "void",
+]);
+
 interface WorkbenchViewProps {
   walletBound: boolean;
   onConnectWallet: () => void;
@@ -85,8 +193,10 @@ export default function WorkbenchView({
   const [bossAnswer, setBossAnswer] = useState<number | null>(null);
   const [bossFeedback, setBossFeedback] = useState<string | null>(null);
   const [showBossHint, setShowBossHint] = useState(false);
+  const [codeTheme, setCodeTheme] = useState<CodeThemeId>("nebula");
 
   const workspaceFiles = questData?.files ?? EMPTY_WORKSPACE_FILES;
+  const activeCodeTheme = CODE_THEMES[codeTheme];
 
   useEffect(() => {
     if (workspaceFiles.length === 0) {
@@ -367,27 +477,46 @@ export default function WorkbenchView({
               </div>
 
               {/* Editor panel */}
-              <div className="flex-1 flex flex-col overflow-hidden bg-[#0A0B0E]">
+              <div className={`flex-1 flex flex-col overflow-hidden ${activeCodeTheme.panel}`}>
                 {/* File Title Bar */}
-                <div className="border-b border-glass-border/70 px-4 py-2 flex justify-between items-center text-xs text-on-surface-variant bg-[#0F1115]/80">
-                  <span className="font-mono text-electric-blue">
-                    /{selectedFile?.path || "workspace"}
-                  </span>
-                  <span className="font-mono text-[10px] opacity-50">
-                    TypeScript / Rust Lexer
-                  </span>
+                <div className={`border-b px-4 py-2 flex flex-col gap-2 text-xs text-on-surface-variant sm:flex-row sm:items-center sm:justify-between ${activeCodeTheme.titleBar} ${activeCodeTheme.border}`}>
+                  <div className="min-w-0">
+                    <span className="block truncate font-mono text-electric-blue">
+                      /{selectedFile?.path || "workspace"}
+                    </span>
+                    <span className="font-mono text-[10px] uppercase opacity-50">
+                      {selectedFile ? getLanguageLabel(selectedFile) : "Workspace"}
+                    </span>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1 rounded-lg border border-white/10 bg-black/20 p-1">
+                    {CODE_THEME_IDS.map((themeId) => {
+                      const theme = CODE_THEMES[themeId];
+                      return (
+                        <button
+                          key={themeId}
+                          type="button"
+                          onClick={() => setCodeTheme(themeId)}
+                          className={`rounded-md border px-2.5 py-1 font-mono text-[10px] font-bold uppercase transition-colors ${codeTheme === themeId ? theme.activeButton : "border-transparent text-on-surface-variant hover:bg-white/5 hover:text-white"}`}
+                        >
+                          {theme.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {/* File Contents */}
-                <div className="flex-1 overflow-y-auto p-5 md:p-6 font-mono text-[13px] leading-6 text-gray-300 select-text">
+                <div className="flex-1 overflow-y-auto p-0 font-mono text-[13px] leading-6 select-text">
                   {selectedFile ? (
-                    <pre className="whitespace-pre-wrap">
+                    <pre className="min-w-full py-5">
                       {selectedFile.content.split("\n").map((line, idx) => (
-                        <div key={idx} className="flex hover:bg-white/5 px-2 rounded">
-                          <span className="w-10 text-on-surface-variant opacity-30 select-none border-r border-glass-border/30 pr-3 mr-4 text-right">
+                        <div key={idx} className={`grid min-h-6 grid-cols-[3.5rem_1fr] px-0 ${activeCodeTheme.lineHover}`}>
+                          <span className={`select-none border-r pr-3 text-right text-[11px] leading-6 ${activeCodeTheme.border} ${activeCodeTheme.gutterText}`}>
                             {idx + 1}
                           </span>
-                          <span className="text-[#A9B2C3] font-mono break-words">{line}</span>
+                          <code className="min-w-0 whitespace-pre-wrap break-words px-4 leading-6">
+                            {highlightCodeLine(line, inferFileLanguage(selectedFile), activeCodeTheme)}
+                          </code>
                         </div>
                       ))}
                     </pre>
@@ -596,4 +725,256 @@ export default function WorkbenchView({
       )}
     </div>
   );
+}
+
+function getLanguageLabel(file: WorkbenchFile) {
+  const language = inferFileLanguage(file);
+  if (language.includes("test")) {
+    return "TypeScript Test";
+  }
+  if (language.includes("rs") || language.includes("rust")) {
+    return "Rust";
+  }
+  if (language.includes("md") || file.path.endsWith(".md")) {
+    return "Markdown";
+  }
+  if (language.includes("ts") || file.path.endsWith(".ts")) {
+    return "TypeScript";
+  }
+  return language || "Text";
+}
+
+function inferFileLanguage(file: WorkbenchFile) {
+  const path = file.path.toLowerCase();
+  if (path.endsWith(".test.ts") || path.endsWith(".spec.ts")) {
+    return "test";
+  }
+  if (path.endsWith(".rs")) {
+    return "rust";
+  }
+  if (path.endsWith(".md")) {
+    return "markdown";
+  }
+  if (path.endsWith(".ts") || path.endsWith(".tsx")) {
+    return "typescript";
+  }
+  return "text";
+}
+
+function highlightCodeLine(line: string, language: string, theme: CodeTheme) {
+  return tokenizeCodeLine(line, language).map((token, index) => (
+    <span key={index} className={theme.tokens[token.kind]}>
+      {token.text}
+    </span>
+  ));
+}
+
+function tokenizeCodeLine(line: string, language: string): CodeToken[] {
+  if (isMarkdown(language)) {
+    return tokenizeMarkdownLine(line);
+  }
+
+  return tokenizeProgrammingLine(line, language);
+}
+
+function tokenizeMarkdownLine(line: string): CodeToken[] {
+  if (line.trimStart().startsWith("#")) {
+    const leadingSpaces = line.match(/^\s*/)?.[0] ?? "";
+    const trimmed = line.slice(leadingSpaces.length);
+    const hashes = trimmed.match(/^#+/)?.[0] ?? "";
+    return [
+      { text: leadingSpaces, kind: "plain" },
+      { text: hashes, kind: "punctuation" },
+      { text: trimmed.slice(hashes.length), kind: "keyword" },
+    ];
+  }
+
+  const tokens: CodeToken[] = [];
+  let index = 0;
+  while (index < line.length) {
+    const tickStart = line.indexOf("`", index);
+    if (tickStart === -1) {
+      tokens.push({ text: line.slice(index), kind: "plain" });
+      break;
+    }
+
+    if (tickStart > index) {
+      tokens.push({ text: line.slice(index, tickStart), kind: "plain" });
+    }
+
+    const tickEnd = line.indexOf("`", tickStart + 1);
+    if (tickEnd === -1) {
+      tokens.push({ text: line.slice(tickStart), kind: "string" });
+      break;
+    }
+
+    tokens.push({ text: line.slice(tickStart, tickEnd + 1), kind: "string" });
+    index = tickEnd + 1;
+  }
+
+  if (/^\s*[-*+]\s/.test(line) && tokens.length > 0) {
+    const [first, ...rest] = tokens;
+    const match = first.text.match(/^(\s*[-*+]\s)(.*)$/);
+    if (match) {
+      return [
+        { text: match[1], kind: "punctuation" },
+        { text: match[2], kind: "plain" },
+        ...rest,
+      ];
+    }
+  }
+
+  return tokens.length > 0 ? tokens : [{ text: line, kind: "plain" }];
+}
+
+function tokenizeProgrammingLine(line: string, language: string): CodeToken[] {
+  const tokens: CodeToken[] = [];
+  const keywordSet = isRust(language) ? RUST_KEYWORDS : TS_KEYWORDS;
+  let index = 0;
+
+  while (index < line.length) {
+    const char = line[index];
+    const rest = line.slice(index);
+
+    if (rest.startsWith("//")) {
+      tokens.push({ text: rest, kind: "comment" });
+      break;
+    }
+
+    if (rest.startsWith("/*")) {
+      const commentEnd = line.indexOf("*/", index + 2);
+      const comment = commentEnd === -1 ? rest : line.slice(index, commentEnd + 2);
+      tokens.push({ text: comment, kind: "comment" });
+      index += comment.length;
+      continue;
+    }
+
+    if (char === "\"" || char === "'" || char === "`") {
+      const value = readString(line, index, char);
+      tokens.push({ text: value, kind: "string" });
+      index += value.length;
+      continue;
+    }
+
+    if (/\s/.test(char)) {
+      const value = readWhile(line, index, (next) => /\s/.test(next));
+      tokens.push({ text: value, kind: "plain" });
+      index += value.length;
+      continue;
+    }
+
+    if (/\d/.test(char)) {
+      const value = readWhile(line, index, (next) => /[\d._a-fA-Fxob]/.test(next));
+      tokens.push({ text: value, kind: "number" });
+      index += value.length;
+      continue;
+    }
+
+    if (/[A-Za-z_$]/.test(char)) {
+      const value = readWhile(line, index, (next) => /[A-Za-z0-9_$]/.test(next));
+      tokens.push({
+        text: value,
+        kind: classifyIdentifier(value, line, index, keywordSet),
+      });
+      index += value.length;
+      continue;
+    }
+
+    if ("{}[](),;".includes(char)) {
+      tokens.push({ text: char, kind: "punctuation" });
+      index++;
+      continue;
+    }
+
+    if ("=+-*/%!<>|&?:.".includes(char)) {
+      const value = readWhile(line, index, (next) => "=+-*/%!<>|&?:.".includes(next));
+      tokens.push({ text: value, kind: "operator" });
+      index += value.length;
+      continue;
+    }
+
+    tokens.push({ text: char, kind: "plain" });
+    index++;
+  }
+
+  return tokens;
+}
+
+function classifyIdentifier(value: string, line: string, index: number, keywordSet: Set<string>): CodeTokenKind {
+  const previous = previousNonWhitespace(line, index);
+  const next = nextNonWhitespace(line, index + value.length);
+
+  if (keywordSet.has(value)) {
+    return "keyword";
+  }
+  if (["true", "false", "null", "undefined", "Some", "None", "Ok", "Err"].includes(value)) {
+    return "constant";
+  }
+  if (previous === ".") {
+    return "property";
+  }
+  if (next === ":") {
+    return "property";
+  }
+  if (next === "(") {
+    return "function";
+  }
+  if (COMMON_TYPES.has(value) || /^[A-Z][A-Za-z0-9_]*$/.test(value)) {
+    return "type";
+  }
+  if (/^[A-Z0-9_]{2,}$/.test(value)) {
+    return "constant";
+  }
+  return "plain";
+}
+
+function readString(line: string, start: number, quote: string) {
+  let index = start + 1;
+  while (index < line.length) {
+    if (line[index] === "\\") {
+      index += 2;
+      continue;
+    }
+    if (line[index] === quote) {
+      return line.slice(start, index + 1);
+    }
+    index++;
+  }
+  return line.slice(start);
+}
+
+function readWhile(line: string, start: number, predicate: (value: string) => boolean) {
+  let index = start;
+  while (index < line.length && predicate(line[index])) {
+    index++;
+  }
+  return line.slice(start, index);
+}
+
+function previousNonWhitespace(line: string, index: number) {
+  for (let cursor = index - 1; cursor >= 0; cursor--) {
+    if (!/\s/.test(line[cursor])) {
+      return line[cursor];
+    }
+  }
+  return "";
+}
+
+function nextNonWhitespace(line: string, index: number) {
+  for (let cursor = index; cursor < line.length; cursor++) {
+    if (!/\s/.test(line[cursor])) {
+      return line[cursor];
+    }
+  }
+  return "";
+}
+
+function isRust(language: string) {
+  const normalized = language.toLowerCase();
+  return normalized.includes("rust") || normalized.includes("rs");
+}
+
+function isMarkdown(language: string) {
+  const normalized = language.toLowerCase();
+  return normalized.includes("md") || normalized.includes("markdown");
 }
