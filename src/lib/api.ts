@@ -17,12 +17,18 @@ export type WorkbenchFile = {
   content: string;
 };
 
+export type PersistenceStatus = {
+  saved: boolean;
+  warning: string | null;
+};
+
 export type GenerateQuestResponse = {
   run_id: string;
   source: "open-ai" | "core-fallback";
   wallet: WalletBinding;
   quest: QuestBlueprint;
   ship_requirements: ShipRequirements;
+  persistence?: PersistenceStatus;
 };
 
 export type WalletBinding = {

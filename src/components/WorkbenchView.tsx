@@ -346,8 +346,8 @@ export default function WorkbenchView({
               </div>
             )}
 
-            {generationError && !questData && (
-              <div className="rounded-lg border border-red-500/25 bg-red-500/10 p-3 font-mono text-[11px] leading-relaxed text-red-300">
+            {generationError && (
+              <div className="rounded-lg border border-warning-amber/30 bg-warning-amber/10 p-3 font-mono text-[11px] leading-relaxed text-warning-amber">
                 {generationError}
               </div>
             )}
