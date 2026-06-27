@@ -84,7 +84,7 @@ export default function DashboardView({
           icon={<Wallet className="h-5 w-5 text-electric-blue" />}
           label="Wallet Proof"
           value={walletBound ? "Bound" : "Missing"}
-          detail={walletBound ? walletLabel ?? "CKB signer" : "Sign once to unlock quest generation"}
+          detail={walletBound ? walletLabel ?? "JoyID" : "Sign once to unlock quest generation"}
           ready={walletBound}
           actionLabel={walletBound ? "Manage" : "Connect"}
           onAction={onConnectWallet}
@@ -252,7 +252,7 @@ function buildActivities({
     {
       id: "wallet",
       title: walletBound ? "Wallet ready" : "Wallet proof required",
-      description: walletBound ? "A CKB proof is bound and quest generation is unlocked." : "Connect a signer and sign a VibeQuest proof before generating quests.",
+      description: walletBound ? "A JoyID proof is bound and quest generation is unlocked." : "Connect JoyID and sign a VibeQuest proof before generating quests.",
       time: "now",
       ready: walletBound,
     },

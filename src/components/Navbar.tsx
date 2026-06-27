@@ -79,7 +79,7 @@ export default function Navbar({
 Wallet Bound
                 </span>
                 <span className="text-[10px] font-mono opacity-50">
-                  {walletLabel ?? "CKB signer"}
+                  {walletLabel ?? "JoyID"}
                 </span>
               </div>
               <button

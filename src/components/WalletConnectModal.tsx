@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   Clock,
-  Key,
+  Fingerprint,
   RefreshCw,
   ShieldCheck,
   Terminal as TermIcon,
@@ -52,9 +52,9 @@ export default function WalletConnectModal({
     setStatus("signing");
     setStatusLog([
       signerReady
-        ? "[SIGNER] Requesting CKB secp256k1 signature through connected wallet."
-        : "[SIGNER] Opening wallet connector. Choose a CKB secp256k1 signer.",
-      "[SIGNER] Challenge includes wallet address, timestamp, and VibeQuest run purpose.",
+        ? "[JOYID] Requesting passkey signature through JoyID."
+        : "[JOYID] Opening wallet connector. Choose JoyID Passkey.",
+      "[JOYID] Challenge includes wallet address, timestamp, and VibeQuest run purpose.",
     ]);
 
     try {
@@ -62,7 +62,7 @@ export default function WalletConnectModal({
       setStatus("success");
       setStatusLog((prev) => [
         ...prev,
-        "[CRYPT] Signature received from wallet provider.",
+        "[JOYID] Signature received from JoyID.",
         "[CRYPT] Proof is bound to this VibeQuest session.",
       ]);
     } catch (error) {
@@ -84,7 +84,7 @@ export default function WalletConnectModal({
             </div>
             <div>
               <h2 className="text-base font-bold text-white">Connect Wallet</h2>
-              <p className="text-xs text-on-surface-variant">Bind a CKB secp256k1 proof for VibeQuest runs.</p>
+              <p className="text-xs text-on-surface-variant">Bind a JoyID passkey proof for VibeQuest runs.</p>
             </div>
           </div>
           <button
@@ -103,12 +103,12 @@ export default function WalletConnectModal({
                 <div className="rounded-xl border border-cyber-green/25 bg-cyber-green/5 p-5">
                   <div className="flex items-start gap-4">
                     <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-cyber-green/20 bg-cyber-green/10">
-                      <Key className="h-6 w-6 text-cyber-green" />
+                      <Fingerprint className="h-6 w-6 text-cyber-green" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-bold text-white">CKB secp256k1 signer required</h3>
+                      <h3 className="text-sm font-bold text-white">JoyID Passkey required</h3>
                       <p className="mt-1 text-xs leading-relaxed text-on-surface-variant">
-                        VibeQuest binds quest generation to a standard CKB secp256k1 wallet proof. Passkey/JoyID-style proofs are not accepted for this flow.
+                        VibeQuest uses JoyID for quest generation. Authenticate with your passkey and sign one proof to unlock the workbench.
                       </p>
                     </div>
                   </div>
@@ -119,8 +119,8 @@ export default function WalletConnectModal({
                   disabled={signing}
                   className="flex w-full items-center justify-center gap-2 rounded-xl bg-electric-blue py-4 text-sm font-extrabold uppercase tracking-wider text-[#0B0C0E] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:brightness-50"
                 >
-                  {signing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Key className="h-4 w-4" />}
-                  {signing ? "Waiting for signature..." : signerReady ? "Sign VibeQuest Proof" : "Choose CKB Signer"}
+                  {signing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Fingerprint className="h-4 w-4" />}
+                  {signing ? "Waiting for JoyID..." : signerReady ? "Sign JoyID Proof" : "Choose JoyID"}
                 </button>
               </div>
             ) : (
@@ -189,7 +189,7 @@ export default function WalletConnectModal({
               ) : (
                 <div className="flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-glass-border p-6 text-center text-xs text-on-surface-variant">
                   <Clock className="mb-2 h-8 w-8 opacity-50" />
-                  No wallet proof signed yet.
+                  No JoyID proof signed yet.
                 </div>
               )}
             </div>

@@ -453,7 +453,7 @@ export default function WorkbenchView({
                     <div className="h-full flex flex-col items-center justify-center text-center text-on-surface-variant gap-3 px-6">
                       <TermIcon className="w-8 h-8 opacity-60" />
                       <span className="text-xs font-mono uppercase tracking-wider text-white">No active generated workspace</span>
-                      <span className="max-w-md text-xs leading-relaxed">Connect a CKB signer, then generate a quest to load backend-created files here.</span>
+                      <span className="max-w-md text-xs leading-relaxed">Connect JoyID, then generate a quest to load backend-created files here.</span>
                       {!walletBound && (
                         <button
                           onClick={onConnectWallet}

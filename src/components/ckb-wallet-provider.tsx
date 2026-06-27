@@ -19,7 +19,7 @@ export function CkbWalletProvider({ children }: { children: ReactNode }) {
       ]}
       signerFilter={async (signerInfo) =>
         signerInfo.signer.type === ccc.SignerType.CKB &&
-        signerInfo.signer.signType === ccc.SignerSignType.CkbSecp256k1
+        signerInfo.signer.signType === ccc.SignerSignType.JoyId
       }
     >
       {children}

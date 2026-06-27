@@ -38,8 +38,9 @@ const DEFAULT_BUILD_REQUEST =
 
 const STORAGE_KEYS = {
   activeTab: "vibequest.activeTab",
-  walletProof: "vibequest.walletProof.v2",
+  walletProof: "vibequest.walletProof.joyid.v1",
   legacyWalletProof: "vibequest.walletProof",
+  legacySecpWalletProof: "vibequest.walletProof.v2",
   proofLogs: "vibequest.proofLogs",
 } as const;
 
@@ -55,7 +56,7 @@ const EMPTY_GATES: VerificationGate[] = [
   {
     id: "identity",
     name: "Wallet Proof",
-    description: "A signed CKB secp256k1 wallet proof is bound to this quest session.",
+    description: "A signed JoyID passkey proof is bound to this quest session.",
     isCompleted: false,
   },
   {
@@ -107,6 +108,7 @@ export function VibeQuestWorkbench() {
     const restoredTab = parseTabId(window.location.hash.slice(1)) ?? parseTabId(window.localStorage.getItem(STORAGE_KEYS.activeTab));
     const restoredWalletProof = parseWalletProof(window.localStorage.getItem(STORAGE_KEYS.walletProof));
     window.localStorage.removeItem(STORAGE_KEYS.legacyWalletProof);
+    window.localStorage.removeItem(STORAGE_KEYS.legacySecpWalletProof);
     const restoredProofLogs = parseProofLogs(window.localStorage.getItem(STORAGE_KEYS.proofLogs));
 
     if (restoredTab) {
@@ -210,13 +212,13 @@ export function VibeQuestWorkbench() {
   const bindWalletProof = useCallback(async () => {
     if (!signer) {
       open();
-      throw new Error("Choose a CKB secp256k1 signer, then sign the proof message.");
+      throw new Error("Choose JoyID, then sign the proof message.");
     }
 
-    if (signer.signType !== ccc.SignerSignType.CkbSecp256k1) {
+    if (signer.signType !== ccc.SignerSignType.JoyId) {
       setWalletProof(null);
       open();
-      throw new Error("VibeQuest requires a CKB secp256k1 signer. Choose a CKB signer and sign again.");
+      throw new Error("VibeQuest uses JoyID for quest generation. Choose JoyID and sign again.");
     }
 
     const address = (await signer.getRecommendedAddress()).toString();
@@ -235,7 +237,7 @@ export function VibeQuestWorkbench() {
       signature: {
         signature: signed.signature,
         identity: signed.identity,
-        sign_type: normalizeCkbSignType(signed.signType),
+        sign_type: normalizeJoyIdSignType(signed.signType),
       },
     };
 
@@ -264,9 +266,9 @@ export function VibeQuestWorkbench() {
     async (request: string, track: string, rawDifficulty: string) => {
       setGenerationError(null);
 
-      if (!walletProof || !isCkbSecp256k1SignType(walletProof.signature.sign_type)) {
+      if (!walletProof || !isJoyIdSignType(walletProof.signature.sign_type)) {
         setWalletProof(null);
-        setGenerationError("Sign a fresh CKB secp256k1 wallet proof before generating a quest.");
+        setGenerationError("Sign a fresh JoyID proof before generating a quest.");
         setWalletModalOpen(true);
         return false;
       }
@@ -304,11 +306,11 @@ export function VibeQuestWorkbench() {
         return true;
       } catch (error) {
         const message = error instanceof Error ? error.message : "Quest generation failed.";
-        if (message.includes("CkbSecp256k1")) {
+        if (message.includes("JoyID")) {
           setWalletProof(null);
           setProofLogs([]);
           setWalletModalOpen(true);
-          setGenerationError("Your saved wallet proof is not a CKB secp256k1 proof. Sign again with a CKB signer.");
+          setGenerationError("Your saved wallet proof is not a JoyID proof. Sign again with JoyID.");
         } else {
           setGenerationError(message);
         }
@@ -476,7 +478,7 @@ function parseWalletProof(value: string | null): WalletProof | null {
         ...parsed,
         signature: {
           ...parsed.signature,
-          sign_type: normalizeCkbSignType(parsed.signature.sign_type),
+          sign_type: normalizeJoyIdSignType(parsed.signature.sign_type),
         },
       };
     }
@@ -487,16 +489,16 @@ function parseWalletProof(value: string | null): WalletProof | null {
   return null;
 }
 
-function normalizeCkbSignType(value: unknown): string {
+function normalizeJoyIdSignType(value: unknown): string {
   const raw = String(value ?? "").trim();
 
-  return isCkbSecp256k1SignType(raw) ? "CkbSecp256k1" : raw;
+  return isJoyIdSignType(raw) ? "JoyId" : raw;
 }
 
-function isCkbSecp256k1SignType(value: unknown): boolean {
-  const compact = String(value ?? "").trim().replace(/[\s_.-]/g, "").toLowerCase();
+function isJoyIdSignType(value: unknown): boolean {
+  const compact = String(value ?? "").trim().replace(/[\s_.:-]/g, "").toLowerCase();
 
-  return compact === "ckbsecp256k1" || compact === "signersigntypeckbsecp256k1";
+  return compact === "joyid" || compact === "signersigntypejoyid";
 }
 
 function parseProofLogs(value: string | null): ProofLog[] {

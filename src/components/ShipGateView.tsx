@@ -106,7 +106,7 @@ export default function ShipGateView({
               <CheckRow
                 passed={walletBound}
                 title="Identity Proof Token"
-                description="CKB secp256k1 wallet proof is bound to this quest session."
+                description="JoyID passkey proof is bound to this quest session."
               />
               <CheckRow
                 passed={ckbRpcOnline}
