@@ -19,7 +19,7 @@ export type WorkbenchFile = {
 
 export type GenerateQuestResponse = {
   run_id: string;
-  source: "open-ai";
+  source: "open-ai" | "core-fallback";
   wallet: WalletBinding;
   quest: QuestBlueprint;
   ship_requirements: ShipRequirements;
