@@ -396,12 +396,8 @@ export function VibeQuestWorkbench() {
       }
 
       const currentHealth = health ?? (await refreshHealth());
-      if (!currentHealth?.integrations.openai) {
-        setGenerationError(
-          currentHealth?.missing.includes("OPENAI_API_KEY")
-            ? "OpenAI is missing on vibequest-core. Add OPENAI_API_KEY before generating live quests."
-            : "OpenAI is not reachable through vibequest-core yet.",
-        );
+      if (!currentHealth?.integrations.mongodb) {
+        setGenerationError("MongoDB is not ready on vibequest-core, so quest progress cannot be saved.");
         return false;
       }
 
@@ -425,6 +421,9 @@ export function VibeQuestWorkbench() {
         const mappedQuest = mapQuestResponse(response);
         setQuestData(mappedQuest);
         setSelectedFile(mappedQuest.files[0] ?? null);
+        if (response.source === "core-fallback") {
+          setGenerationError("Quick quest loaded. The AI response was skipped or too slow, so VibeQuest Core used its lightweight compiler.");
+        }
         void loadQuestHistory(walletProof.address, response.run_id);
         return true;
       } catch (error) {

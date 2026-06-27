@@ -713,14 +713,20 @@ export default function WorkbenchView({
           <div className="absolute inset-0 bg-cyber-green/5 blur-[50px] rounded-full pointer-events-none"></div>
           <Award className="w-16 h-16 text-cyber-green animate-bounce" />
           <h2 className="text-3xl font-black text-white uppercase tracking-tight">
-            Proof Envelope Locked
+            Success Badge Earned
           </h2>
           <p className="text-sm text-gray-300 max-w-md leading-relaxed">
-            Your verified quest solution proof for <span className="text-cyber-green font-semibold">&ldquo;{questData?.questName}&rdquo;</span> is now locked locally for reward claim wiring. The chain claim adapter can consume this proof state next.
+            <span className="text-cyber-green font-semibold">&ldquo;{questData?.questName}&rdquo;</span> is recorded as completed. Your previous quest stays in the dashboard ledger so you can keep moving.
           </p>
           <div className="bg-[#0B0C0E] border border-glass-border px-5 py-3 rounded font-mono text-xs text-cyber-green mt-2 select-all">
-            PROOF_STATE: WALLET_BOUND / QUEST_VERIFIED / BOSS_SOLVED
+            BADGE_STATE: WALLET_BOUND / QUEST_VERIFIED / BOSS_SOLVED / RECORDED
           </div>
+          <button
+            onClick={onOpenQuestRun}
+            className="mt-2 rounded-xl bg-cyber-green px-6 py-3 text-xs font-black uppercase tracking-widest text-black transition-all hover:brightness-110"
+          >
+            Move To Next Quest
+          </button>
         </div>
       )}
     </div>
