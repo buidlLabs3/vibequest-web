@@ -6,12 +6,13 @@ import {
   Clock,
   Code2,
   LayoutDashboard,
+  ReceiptText,
   ShieldCheck,
   Wallet,
   XCircle,
 } from "lucide-react";
 
-import type { HealthResponse, QuestRunRecord, UserQuestCounts } from "@/lib/api";
+import type { HealthResponse, QuestRunRecord, RewardClaimRecord, UserQuestCounts } from "@/lib/api";
 import type { ProofLog, QuestData, VerificationGate } from "@/lib/workbench-types";
 
 interface DashboardViewProps {
@@ -29,6 +30,7 @@ interface DashboardViewProps {
   onOpenShipGate: () => void;
   questRuns: QuestRunRecord[];
   questStats: UserQuestCounts;
+  rewardClaims: RewardClaimRecord[];
   historyLoading: boolean;
   historyError: string | null;
 }
@@ -48,6 +50,7 @@ export default function DashboardView({
   onOpenShipGate,
   questRuns,
   questStats,
+  rewardClaims,
   historyLoading,
   historyError,
 }: DashboardViewProps) {
@@ -55,6 +58,8 @@ export default function DashboardView({
     health?.integrations.openai && health.integrations.ckb_rpc && health.integrations.fiber_rpc && health.integrations.mongodb,
   );
   const passedGates = gates.filter((gate) => gate.isCompleted).length;
+  const paidClaims = rewardClaims.filter((claim) => claim.status === "paid").length;
+  const openClaims = rewardClaims.filter((claim) => claim.status === "verified" || claim.status === "paying" || claim.status === "pending").length;
   const activities = buildActivities({
     walletBound,
     proofLogs,
@@ -117,7 +122,7 @@ export default function DashboardView({
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         <MetricCard
           icon={<Code2 className="h-5 w-5 text-electric-blue" />}
           label="Created Quests"
@@ -144,6 +149,15 @@ export default function DashboardView({
           ready={questStats.uncompleted === 0 && questStats.created > 0}
           actionLabel="Workbench"
           onAction={onOpenWorkbench}
+        />
+        <MetricCard
+          icon={<ReceiptText className="h-5 w-5 text-electric-blue" />}
+          label="Reward Claims"
+          value={String(rewardClaims.length)}
+          detail={paidClaims > 0 ? `${paidClaims} paid` : openClaims > 0 ? `${openClaims} awaiting payout` : "No claims yet"}
+          ready={paidClaims > 0}
+          actionLabel="Ledger"
+          onAction={onOpenShipGate}
         />
       </div>
 
@@ -205,6 +219,36 @@ export default function DashboardView({
             ) : (
               <div className="rounded-lg border border-dashed border-glass-border p-5 text-center text-xs text-on-surface-variant">
                 No MongoDB quest runs stored for this wallet yet.
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-glass-border bg-[#16181D] p-5">
+            <div className="mb-4 flex items-center justify-between border-b border-glass-border pb-3">
+              <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Reward Claims</h2>
+              <span className="font-mono text-xs text-on-surface-variant">{rewardClaims.length}</span>
+            </div>
+            {rewardClaims.length > 0 ? (
+              <div className="flex max-h-[280px] flex-col gap-2 overflow-y-auto pr-1">
+                {rewardClaims.slice(0, 8).map((claim) => (
+                  <div key={claim.claim_id} className="rounded-lg border border-glass-border/70 bg-[#0B0C0E] p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-mono text-[10px] uppercase text-on-surface-variant">{shortId(claim.run_id)}</span>
+                      <span className={"rounded border px-2 py-0.5 font-mono text-[10px] uppercase " + rewardStatusClass(claim.status)}>
+                        {claim.status}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm font-bold text-white">{claim.amount_shannons} {claim.currency}</p>
+                    <p className="mt-1 truncate font-mono text-[10px] text-on-surface-variant">
+                      {claim.fiber_payment?.payment_hash ? `payment ${shortId(claim.fiber_payment.payment_hash)}` : claim.fiber_payment?.status ?? "no payment receipt yet"}
+                    </p>
+                    {claim.error ? <p className="mt-1 line-clamp-2 text-[11px] text-red-300">{claim.error}</p> : null}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-glass-border p-5 text-center text-xs text-on-surface-variant">
+                Completed quests with reward invoices will appear here.
               </div>
             )}
           </div>
@@ -349,11 +393,28 @@ function buildActivities({
     },
     {
       id: "ship",
-      title: shipped ? "Proof envelope locked" : "Ship gate waiting",
-      description: shipped ? "The verified run is ready for reward claim wiring." : "Solve the boss and complete gates to lock the proof envelope.",
+      title: shipped ? "Reward claim locked" : "Ship gate waiting",
+      description: shipped ? "The verified run has a backend reward claim." : "Solve the boss and submit a Fiber invoice to lock the reward claim.",
       time: shipped ? "done" : "locked",
       ready: shipped,
     },
     ...proofEvents,
   ];
+}
+
+function rewardStatusClass(status: string) {
+  if (status === "paid") {
+    return "border-cyber-green/20 bg-cyber-green/10 text-cyber-green";
+  }
+  if (status === "failed") {
+    return "border-red-500/30 bg-red-500/10 text-red-300";
+  }
+  return "border-electric-blue/20 bg-electric-blue/10 text-electric-blue";
+}
+
+function shortId(value: string) {
+  if (value.length <= 18) {
+    return value;
+  }
+  return `${value.slice(0, 10)}...${value.slice(-6)}`;
 }

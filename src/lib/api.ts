@@ -57,6 +57,7 @@ export type HealthResponse = {
     openai: boolean;
     ckb_rpc: boolean;
     fiber_rpc: boolean;
+    fiber_payout: boolean;
     mongodb: boolean;
   };
   missing: string[];
@@ -85,6 +86,35 @@ export type QuestProgress = {
 
 export type QuestRunStatus = "in-progress" | "completed";
 
+export type RewardSnapshot = {
+  amount_shannons: string;
+  currency: string;
+  sponsor: string;
+};
+
+export type FiberPaymentReceipt = {
+  payment_hash: string | null;
+  status: string | null;
+  fee: string | null;
+  raw: unknown;
+};
+
+export type RewardClaimStatus = "pending" | "verified" | "paying" | "paid" | "failed";
+
+export type RewardClaimRecord = {
+  claim_id: string;
+  run_id: string;
+  user_address: string;
+  amount_shannons: string;
+  currency: string;
+  status: RewardClaimStatus;
+  fiber_payment: FiberPaymentReceipt | null;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+  paid_at: string | null;
+};
+
 export type QuestRunRecord = {
   run_id: string;
   user_address: string;
@@ -96,6 +126,7 @@ export type QuestRunRecord = {
   ship_requirements: ShipRequirements;
   progress: QuestProgress;
   status: QuestRunStatus;
+  reward: RewardSnapshot;
   created_at: string;
   updated_at: string;
   completed_at: string | null;
@@ -118,6 +149,7 @@ export type UserQuestHistoryResponse = {
   stats: UserQuestCounts;
   active_run: QuestRunRecord | null;
   runs: QuestRunRecord[];
+  reward_claims: RewardClaimRecord[];
 };
 
 export type UpdateQuestProgressRequest = {
@@ -125,6 +157,18 @@ export type UpdateQuestProgressRequest = {
   gates?: StoredGateProgress[];
   boss_fight_solved?: boolean;
   shipped?: boolean;
+};
+
+export type CompleteQuestRequest = {
+  wallet: WalletProof;
+  gates: StoredGateProgress[];
+  boss_fight_solved: boolean;
+  fiber_invoice: string;
+};
+
+export type CompleteQuestResponse = {
+  run: QuestRunRecord;
+  claim: RewardClaimRecord;
 };
 
 export const API_BASE_URL =
@@ -215,6 +259,25 @@ export async function updateQuestProgress(
   }
 
   return response.json() as Promise<QuestRunRecord>;
+}
+
+export async function completeQuest(
+  runId: string,
+  payload: CompleteQuestRequest,
+): Promise<CompleteQuestResponse> {
+  const response = await fetch(API_BASE_URL + "/quests/" + encodeURIComponent(runId) + "/complete", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(await apiErrorMessage(response, "Quest completion failed."));
+  }
+
+  return response.json() as Promise<CompleteQuestResponse>;
 }
 
 async function apiErrorMessage(response: Response, fallback: string) {

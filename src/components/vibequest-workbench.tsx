@@ -11,6 +11,7 @@ import ShipGateView from "@/components/ShipGateView";
 import WalletConnectModal from "@/components/WalletConnectModal";
 import WorkbenchView from "@/components/WorkbenchView";
 import {
+  completeQuest,
   generateQuest,
   getHealth,
   getUserQuestHistory,
@@ -19,6 +20,7 @@ import {
   type GenerateQuestResponse,
   type HealthResponse,
   type QuestRunRecord,
+  type RewardClaimRecord,
   type UserQuestCounts,
   type WalletProof,
 } from "@/lib/api";
@@ -97,6 +99,9 @@ export function VibeQuestWorkbench() {
   const [gates, setGates] = useState<VerificationGate[]>(EMPTY_GATES);
   const [proofLogs, setProofLogs] = useState<ProofLog[]>([]);
   const [questRuns, setQuestRuns] = useState<QuestRunRecord[]>([]);
+  const [rewardClaims, setRewardClaims] = useState<RewardClaimRecord[]>([]);
+  const [shipping, setShipping] = useState(false);
+  const [shipError, setShipError] = useState<string | null>(null);
   const [questStats, setQuestStats] = useState<UserQuestCounts>({
     created: 0,
     completed: 0,
@@ -246,6 +251,7 @@ export function VibeQuestWorkbench() {
       try {
         const history = await getUserQuestHistory(address);
         setQuestRuns(history.runs);
+        setRewardClaims(history.reward_claims ?? []);
         setQuestStats(history.stats);
 
         const activeRun = preferredRunId
@@ -273,7 +279,7 @@ export function VibeQuestWorkbench() {
   }, [loadQuestHistory, walletProof?.address]);
 
   const persistCurrentProgress = useCallback(
-    async (next: { gates?: VerificationGate[]; bossFightSolved?: boolean; shipped?: boolean }) => {
+    async (next: { gates?: VerificationGate[]; bossFightSolved?: boolean }) => {
       if (!walletProof || !questData?.runId) {
         return;
       }
@@ -288,14 +294,13 @@ export function VibeQuestWorkbench() {
             is_completed: gate.isCompleted,
           })),
           boss_fight_solved: next.bossFightSolved ?? bossFightSolved,
-          shipped: next.shipped ?? shipped,
         });
         void loadQuestHistory(walletProof.address, updated.run_id);
       } catch (error) {
         setHistoryError(error instanceof Error ? error.message : "Quest progress failed to save.");
       }
     },
-    [bossFightSolved, gates, loadQuestHistory, questData?.runId, shipped, walletProof],
+    [bossFightSolved, gates, loadQuestHistory, questData?.runId, walletProof],
   );
 
   const handleSetGates = useCallback(
@@ -372,13 +377,16 @@ export function VibeQuestWorkbench() {
     setBossFightSolved(false);
     setShipped(false);
     setQuestRuns([]);
+    setRewardClaims([]);
     setQuestStats({ created: 0, completed: 0, uncompleted: 0 });
     setHistoryError(null);
+    setShipError(null);
   }, []);
 
   const handleGenerateQuest = useCallback(
     async (request: string, track: string, rawDifficulty: string) => {
       setGenerationError(null);
+      setShipError(null);
 
       if (!walletProof || !isJoyIdSignType(walletProof.signature.sign_type)) {
         setWalletProof(null);
@@ -437,11 +445,48 @@ export function VibeQuestWorkbench() {
     [health, loadQuestHistory, refreshHealth, walletProof],
   );
 
-  const handleShipCargo = useCallback(() => {
-    setShipped(true);
-    void persistCurrentProgress({ shipped: true });
-    setActiveTab("workbench");
-  }, [persistCurrentProgress]);
+  const handleShipCargo = useCallback(
+    async (fiberInvoice: string) => {
+      if (!walletProof || !questData?.runId) {
+        setShipError("Connect JoyID and generate a quest before claiming rewards.");
+        return;
+      }
+
+      setShipping(true);
+      setShipError(null);
+
+      try {
+        const response = await completeQuest(questData.runId, {
+          wallet: walletProof,
+          gates: gates.map((gate) => ({
+            id: gate.id,
+            name: gate.name,
+            description: gate.description,
+            is_completed: gate.isCompleted,
+          })),
+          boss_fight_solved: bossFightSolved,
+          fiber_invoice: fiberInvoice,
+        });
+        applyQuestRun(response.run);
+        setRewardClaims((previous) => [
+          response.claim,
+          ...previous.filter((claim) => claim.claim_id !== response.claim.claim_id),
+        ]);
+        await loadQuestHistory(walletProof.address, response.run.run_id);
+        setActiveTab("dashboard");
+      } catch (error) {
+        setShipError(error instanceof Error ? error.message : "Quest completion failed.");
+      } finally {
+        setShipping(false);
+      }
+    },
+    [applyQuestRun, bossFightSolved, gates, loadQuestHistory, questData?.runId, walletProof],
+  );
+
+  const activeRewardClaim = useMemo(
+    () => rewardClaims.find((claim) => claim.run_id === questData?.runId) ?? null,
+    [questData?.runId, rewardClaims],
+  );
 
   const setActiveTabStrict = useCallback((tab: string) => {
     setActiveTab(tab as TabId);
@@ -491,7 +536,7 @@ export function VibeQuestWorkbench() {
             bossFightSolved={bossFightSolved}
             setBossFightSolved={handleSetBossFightSolved}
             shipped={shipped}
-            onShip={handleShipCargo}
+            onShip={() => setActiveTab("ship-gate")}
             ckbRpcOnline={infrastructureReady}
             generationError={generationError}
           />
@@ -513,6 +558,7 @@ export function VibeQuestWorkbench() {
             onOpenShipGate={() => setActiveTab("ship-gate")}
             questRuns={questRuns}
             questStats={questStats}
+            rewardClaims={rewardClaims}
             historyLoading={historyLoading}
             historyError={historyError}
           />
@@ -541,6 +587,9 @@ export function VibeQuestWorkbench() {
             gates={gates}
             bossFightSolved={bossFightSolved}
             shipped={shipped}
+            shipping={shipping}
+            shipError={shipError}
+            rewardClaim={activeRewardClaim}
             onShip={handleShipCargo}
           />
         )}
