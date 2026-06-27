@@ -19,14 +19,7 @@ interface WorkbenchViewProps {
   walletBound: boolean;
   onConnectWallet: () => void;
   questData: QuestData | null;
-  onGenerateQuest: (request: string, skill: string, difficulty: string) => Promise<boolean>;
-  generating: boolean;
-  buildRequest: string;
-  setBuildRequest: (req: string) => void;
-  skillTrack: string;
-  setSkillTrack: (track: string) => void;
-  difficulty: string;
-  setDifficulty: (diff: string) => void;
+  onOpenQuestRun: () => void;
   selectedFile: WorkbenchFile | null;
   setSelectedFile: (file: WorkbenchFile | null) => void;
   gates: VerificationGate[];
@@ -75,14 +68,7 @@ export default function WorkbenchView({
   walletBound,
   onConnectWallet,
   questData,
-  onGenerateQuest,
-  generating,
-  buildRequest,
-  setBuildRequest,
-  skillTrack,
-  setSkillTrack,
-  difficulty,
-  setDifficulty,
+  onOpenQuestRun,
   selectedFile,
   setSelectedFile,
   gates,
@@ -208,105 +194,61 @@ export default function WorkbenchView({
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-        {/* LEFT COLUMN: QUEST BUILD / PROMPT PANEL (span 4) */}
+        {/* LEFT COLUMN: ACTIVE RUN STATE */}
         <div className="xl:col-span-3 flex flex-col gap-6">
           <div className="bg-[#16181D] border border-glass-border rounded-xl p-5 flex flex-col gap-5">
             <div className="flex items-center gap-2 border-b border-glass-border pb-3">
-              <span className="w-2.5 h-2.5 rounded-full bg-electric-blue"></span>
+              <span className={questData ? "w-2.5 h-2.5 rounded-full bg-cyber-green" : "w-2.5 h-2.5 rounded-full bg-warning-amber"}></span>
               <h2 className="text-sm font-mono font-bold uppercase tracking-wider text-white">
-                Forge Quest Parameters
+                Current Run
               </h2>
             </div>
 
-            {/* Skill Track Selection */}
-            <div className="flex flex-col gap-2">
-              <label className="text-xs font-mono uppercase text-on-surface-variant">
-                Skill Track
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {["Fiber Builder", "CKB Fundamentals", "AI Discipline"].map((track) => (
-                  <button
-                    key={track}
-                    onClick={() => setSkillTrack(track)}
-                    className={`px-3 py-2 rounded font-mono text-xs border text-center transition-all cursor-pointer ${
-                      skillTrack === track
-                        ? "border-electric-blue bg-electric-blue/15 text-electric-blue font-bold"
-                        : "border-glass-border text-on-surface-variant hover:bg-white/5"
-                    }`}
-                  >
-                    {track.split(" ")[0]}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Threat Level Selection */}
-            <div className="flex flex-col gap-2">
-              <label className="text-xs font-mono uppercase text-on-surface-variant">
-                Threat Level
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {["NOVICE", "BUILDER", "BOSS"].map((level) => (
-                  <button
-                    key={level}
-                    onClick={() => setDifficulty(level)}
-                    className={`px-3 py-2 rounded font-mono text-xs border text-center transition-all cursor-pointer ${
-                      difficulty === level
-                        ? level === "NOVICE"
-                          ? "border-cyber-green bg-cyber-green/15 text-cyber-green font-bold"
-                          : level === "BUILDER"
-                          ? "border-electric-blue bg-electric-blue/15 text-electric-blue font-bold"
-                          : "border-warning-amber bg-warning-amber/15 text-warning-amber font-bold"
-                        : "border-glass-border text-on-surface-variant hover:bg-white/5"
-                    }`}
-                  >
-                    {level}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Build Request TextArea */}
-            <div className="flex flex-col gap-2">
-              <label className="text-xs font-mono uppercase text-on-surface-variant flex justify-between items-center">
-                <span>Build Request Prompt</span>
-                <span className="text-[10px] text-electric-blue cursor-pointer hover:underline" onClick={() => setBuildRequest("Build a state-channel payment route with atomic multi-hop payments and signature check.")}>
-                  Load Preset
+            <div className="grid grid-cols-2 gap-3 text-[11px] font-mono">
+              <div className="rounded-lg border border-glass-border bg-[#0B0C0E]/60 p-3">
+                <span className="block uppercase text-on-surface-variant">JoyID</span>
+                <span className={walletBound ? "mt-1 block font-bold text-cyber-green" : "mt-1 block font-bold text-warning-amber"}>
+                  {walletBound ? "BOUND" : "MISSING"}
                 </span>
-              </label>
-              <textarea
-                value={buildRequest}
-                onChange={(e) => setBuildRequest(e.target.value)}
-                rows={5}
-                className="w-full bg-[#0B0C0E] border border-glass-border rounded-lg p-3 font-mono text-xs text-white focus:outline-none focus:border-electric-blue resize-none leading-relaxed"
-                placeholder="Describe the CKB/Fiber app, proof behavior, and tests you want generated..."
-              />
+              </div>
+              <div className="rounded-lg border border-glass-border bg-[#0B0C0E]/60 p-3">
+                <span className="block uppercase text-on-surface-variant">Core</span>
+                <span className={ckbRpcOnline ? "mt-1 block font-bold text-cyber-green" : "mt-1 block font-bold text-warning-amber"}>
+                  {ckbRpcOnline ? "READY" : "BLOCKED"}
+                </span>
+              </div>
             </div>
 
-            {/* Generate Quest Button */}
-            <button
-              onClick={() => void onGenerateQuest(buildRequest, skillTrack, difficulty)}
-              disabled={generating || !buildRequest.trim()}
-              className="w-full py-3.5 bg-electric-blue hover:brightness-110 disabled:brightness-50 disabled:cursor-not-allowed text-[#0B0C0E] rounded-lg font-bold text-sm tracking-wider uppercase transition-all flex items-center justify-center gap-2 cursor-pointer"
-            >
-              {generating ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  Generating Workspace...
-                </>
-              ) : (
-                <>
-                  <Play className="w-4 h-4" />
-                  Generate Quest
-                </>
-              )}
-            </button>
+            {questData ? (
+              <div className="rounded-lg border border-cyber-green/20 bg-cyber-green/5 p-4">
+                <span className="font-mono text-[10px] uppercase tracking-wider text-cyber-green">Active Quest</span>
+                <h3 className="mt-1 text-base font-bold text-white">{questData.questName}</h3>
+                <p className="mt-2 font-mono text-[11px] text-on-surface-variant">
+                  {workspaceFiles.length} files / {questData.gates.length} gates
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-glass-border bg-[#0B0C0E]/60 p-4">
+                <span className="font-mono text-[10px] uppercase tracking-wider text-warning-amber">No Active Quest</span>
+                <p className="mt-2 text-xs leading-relaxed text-on-surface-variant">
+                  Generate a run, then inspect its files and gates here.
+                </p>
+              </div>
+            )}
 
-            {generationError && (
+            {generationError && !questData && (
               <div className="rounded-lg border border-red-500/25 bg-red-500/10 p-3 font-mono text-[11px] leading-relaxed text-red-300">
                 {generationError}
               </div>
             )}
+
+            <button
+              onClick={onOpenQuestRun}
+              className="w-full py-3 border border-electric-blue/40 bg-electric-blue/10 text-electric-blue hover:bg-electric-blue/15 font-mono font-bold text-xs uppercase rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Play className="w-3.5 h-3.5" />
+              {questData ? "Generate Another Run" : "Open Quest Run"}
+            </button>
           </div>
 
           {questData && (

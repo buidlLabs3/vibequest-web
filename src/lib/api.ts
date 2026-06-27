@@ -101,15 +101,20 @@ export async function generateQuest(
   });
 
   if (!response.ok) {
-    let message = "Quest generation failed. Check that vibequest-core is running.";
+    let message = response.status === 504
+      ? "Quest generation timed out before vibequest-core returned. Try again with a shorter prompt."
+      : "Quest generation failed. Check that vibequest-core is running.";
+    const bodyText = await response.text().catch(() => "");
 
     try {
-      const body = (await response.json()) as { error?: string };
+      const body = JSON.parse(bodyText) as { error?: string };
       if (body.error) {
         message = body.error;
       }
     } catch {
-      // Keep the generic error when the backend does not return JSON.
+      if (bodyText.includes("FUNCTION_INVOCATION_TIMEOUT")) {
+        message = "Quest generation timed out on Vercel before the AI response completed.";
+      }
     }
 
     throw new Error(message);

@@ -18,7 +18,6 @@ export default function Navbar({
   walletLabel,
 }: NavbarProps) {
   const tabs = [
-    { id: "landing", label: "Overview" },
     { id: "dashboard", label: "Dashboard" },
     { id: "workbench", label: "Workbench" },
     { id: "quest-run", label: "Quest Run" },
@@ -30,7 +29,7 @@ export default function Navbar({
       <div className="max-w-7xl mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
         {/* Logo and App Name */}
         <div 
-          onClick={() => setActiveTab("landing")}
+          onClick={() => setActiveTab("workbench")}
           className="flex items-center gap-3 cursor-pointer group"
         >
           <div className="w-8 h-8 rounded bg-gradient-to-tr from-electric-blue to-cyber-green flex items-center justify-center font-bold text-black font-mono shadow-[0_0_15px_rgba(0,240,255,0.4)]">
