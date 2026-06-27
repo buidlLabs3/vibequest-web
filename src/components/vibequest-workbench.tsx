@@ -4,6 +4,7 @@ import { ccc, useCcc, useSigner } from "@ckb-ccc/connector-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import DashboardView from "@/components/DashboardView";
+import LandingPage from "@/components/LandingPage";
 import Navbar from "@/components/Navbar";
 import QuestRunView from "@/components/QuestRunView";
 import ShipGateView from "@/components/ShipGateView";
@@ -26,6 +27,7 @@ import type {
 } from "@/lib/workbench-types";
 
 type TabId =
+  | "landing"
   | "dashboard"
   | "workbench"
   | "quest-run"
@@ -43,6 +45,7 @@ const STORAGE_KEYS = {
 } as const;
 
 const TAB_IDS = new Set<TabId>([
+  "landing",
   "dashboard",
   "workbench",
   "quest-run",
@@ -73,7 +76,7 @@ const EMPTY_GATES: VerificationGate[] = [
 export function VibeQuestWorkbench() {
   const { open } = useCcc();
   const signer = useSigner();
-  const [activeTab, setActiveTab] = useState<TabId>("workbench");
+  const [activeTab, setActiveTab] = useState<TabId>("landing");
   const [sessionReady, setSessionReady] = useState(false);
   const [walletModalOpen, setWalletModalOpen] = useState(false);
   const [health, setHealth] = useState<HealthResponse | null>(null);
@@ -352,6 +355,14 @@ export function VibeQuestWorkbench() {
       />
 
       <main className="flex-1">
+        {activeTab === "landing" && (
+          <LandingPage
+            onEnterWorkbench={() => setActiveTab("workbench")}
+            walletBound={walletBound}
+            onConnectWallet={() => setWalletModalOpen(true)}
+          />
+        )}
+
         {activeTab === "workbench" && (
           <WorkbenchView
             walletBound={walletBound}
@@ -435,7 +446,7 @@ function parseTabId(value: string | null): TabId | null {
     return null;
   }
 
-  if (value === "infrastructure" || value === "landing") {
+  if (value === "infrastructure") {
     return "workbench";
   }
 
