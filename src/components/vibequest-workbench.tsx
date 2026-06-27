@@ -1,7 +1,7 @@
 "use client";
 
 import { ccc, useCcc, useSigner } from "@ckb-ccc/connector-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type SetStateAction } from "react";
 
 import DashboardView from "@/components/DashboardView";
 import LandingPage from "@/components/LandingPage";
@@ -13,9 +13,13 @@ import WorkbenchView from "@/components/WorkbenchView";
 import {
   generateQuest,
   getHealth,
+  getUserQuestHistory,
+  updateQuestProgress,
   type Difficulty,
   type GenerateQuestResponse,
   type HealthResponse,
+  type QuestRunRecord,
+  type UserQuestCounts,
   type WalletProof,
 } from "@/lib/api";
 import type {
@@ -92,11 +96,20 @@ export function VibeQuestWorkbench() {
   const [selectedFile, setSelectedFile] = useState<WorkbenchFile | null>(null);
   const [gates, setGates] = useState<VerificationGate[]>(EMPTY_GATES);
   const [proofLogs, setProofLogs] = useState<ProofLog[]>([]);
+  const [questRuns, setQuestRuns] = useState<QuestRunRecord[]>([]);
+  const [questStats, setQuestStats] = useState<UserQuestCounts>({
+    created: 0,
+    completed: 0,
+    uncompleted: 0,
+  });
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
 
   const infrastructureReady = Boolean(
     health?.integrations.openai &&
       health.integrations.ckb_rpc &&
-      health.integrations.fiber_rpc,
+      health.integrations.fiber_rpc &&
+      health.integrations.mongodb,
   );
   const walletBound = Boolean(walletProof);
 
@@ -209,6 +222,104 @@ export function VibeQuestWorkbench() {
     );
   }, [infrastructureReady, walletBound]);
 
+  const applyQuestRun = useCallback((run: QuestRunRecord) => {
+    const mappedQuest = mapQuestRunRecord(run);
+    setQuestData(mappedQuest);
+    setSelectedFile(mappedQuest.files[0] ?? null);
+    setGates(run.progress.gates.map((gate) => ({
+      id: gate.id,
+      name: gate.name,
+      description: gate.description,
+      isCompleted: gate.is_completed,
+    })));
+    setBossFightSolved(run.progress.boss_fight_solved);
+    setShipped(run.progress.shipped);
+    setBuildRequest(run.build_prompt);
+    setSkillTrack(run.skill_track);
+    setDifficulty(run.difficulty.toUpperCase());
+  }, []);
+
+  const loadQuestHistory = useCallback(
+    async (address: string, preferredRunId?: string) => {
+      setHistoryLoading(true);
+      setHistoryError(null);
+      try {
+        const history = await getUserQuestHistory(address);
+        setQuestRuns(history.runs);
+        setQuestStats(history.stats);
+
+        const activeRun = preferredRunId
+          ? history.runs.find((run) => run.run_id === preferredRunId) ?? history.active_run
+          : history.active_run;
+
+        if (activeRun) {
+          applyQuestRun(activeRun);
+        }
+      } catch (error) {
+        setHistoryError(error instanceof Error ? error.message : "Quest history failed to load.");
+      } finally {
+        setHistoryLoading(false);
+      }
+    },
+    [applyQuestRun],
+  );
+
+  useEffect(() => {
+    if (!walletProof?.address) {
+      return;
+    }
+
+    void loadQuestHistory(walletProof.address);
+  }, [loadQuestHistory, walletProof?.address]);
+
+  const persistCurrentProgress = useCallback(
+    async (next: { gates?: VerificationGate[]; bossFightSolved?: boolean; shipped?: boolean }) => {
+      if (!walletProof || !questData?.runId) {
+        return;
+      }
+
+      try {
+        const updated = await updateQuestProgress(questData.runId, {
+          wallet: walletProof,
+          gates: (next.gates ?? gates).map((gate) => ({
+            id: gate.id,
+            name: gate.name,
+            description: gate.description,
+            is_completed: gate.isCompleted,
+          })),
+          boss_fight_solved: next.bossFightSolved ?? bossFightSolved,
+          shipped: next.shipped ?? shipped,
+        });
+        void loadQuestHistory(walletProof.address, updated.run_id);
+      } catch (error) {
+        setHistoryError(error instanceof Error ? error.message : "Quest progress failed to save.");
+      }
+    },
+    [bossFightSolved, gates, loadQuestHistory, questData?.runId, shipped, walletProof],
+  );
+
+  const handleSetGates = useCallback(
+    (next: SetStateAction<VerificationGate[]>) => {
+      setGates((previous) => {
+        const resolved = typeof next === "function" ? next(previous) : next;
+        void persistCurrentProgress({ gates: resolved });
+        return resolved;
+      });
+    },
+    [persistCurrentProgress],
+  );
+
+  const handleSetBossFightSolved = useCallback(
+    (next: SetStateAction<boolean>) => {
+      setBossFightSolved((previous) => {
+        const resolved = typeof next === "function" ? next(previous) : next;
+        void persistCurrentProgress({ bossFightSolved: resolved });
+        return resolved;
+      });
+    },
+    [persistCurrentProgress],
+  );
+
   const bindWalletProof = useCallback(async () => {
     if (!signer) {
       open();
@@ -260,6 +371,9 @@ export function VibeQuestWorkbench() {
     setSelectedFile(null);
     setBossFightSolved(false);
     setShipped(false);
+    setQuestRuns([]);
+    setQuestStats({ created: 0, completed: 0, uncompleted: 0 });
+    setHistoryError(null);
   }, []);
 
   const handleGenerateQuest = useCallback(
@@ -303,6 +417,7 @@ export function VibeQuestWorkbench() {
         const mappedQuest = mapQuestResponse(response);
         setQuestData(mappedQuest);
         setSelectedFile(mappedQuest.files[0] ?? null);
+        void loadQuestHistory(walletProof.address, response.run_id);
         return true;
       } catch (error) {
         const message = error instanceof Error ? error.message : "Quest generation failed.";
@@ -319,14 +434,14 @@ export function VibeQuestWorkbench() {
         setGenerating(false);
       }
     },
-    [health, refreshHealth, walletProof],
+    [health, loadQuestHistory, refreshHealth, walletProof],
   );
-
 
   const handleShipCargo = useCallback(() => {
     setShipped(true);
+    void persistCurrentProgress({ shipped: true });
     setActiveTab("workbench");
-  }, []);
+  }, [persistCurrentProgress]);
 
   const setActiveTabStrict = useCallback((tab: string) => {
     setActiveTab(tab as TabId);
@@ -372,9 +487,9 @@ export function VibeQuestWorkbench() {
             selectedFile={selectedFile}
             setSelectedFile={setSelectedFile}
             gates={gates}
-            setGates={setGates}
+            setGates={handleSetGates}
             bossFightSolved={bossFightSolved}
-            setBossFightSolved={setBossFightSolved}
+            setBossFightSolved={handleSetBossFightSolved}
             shipped={shipped}
             onShip={handleShipCargo}
             ckbRpcOnline={infrastructureReady}
@@ -396,6 +511,10 @@ export function VibeQuestWorkbench() {
             onOpenQuestRun={() => setActiveTab("quest-run")}
             onOpenWorkbench={() => setActiveTab("workbench")}
             onOpenShipGate={() => setActiveTab("ship-gate")}
+            questRuns={questRuns}
+            questStats={questStats}
+            historyLoading={historyLoading}
+            historyError={historyError}
           />
         )}
 
@@ -534,6 +653,8 @@ function mapQuestResponse(response: GenerateQuestResponse): QuestData {
   }));
 
   return {
+    runId: response.run_id,
+    source: response.source,
     questName: response.quest.title,
     description: `${response.quest.premise}\n\n${response.quest.build_objective}\n\nReward logic: ${response.quest.reward_logic}`,
     files,
@@ -545,6 +666,21 @@ function mapQuestResponse(response: GenerateQuestResponse): QuestData {
     })),
     bossFight: buildBossFight(response),
   };
+}
+
+function mapQuestRunRecord(run: QuestRunRecord): QuestData {
+  return mapQuestResponse({
+    run_id: run.run_id,
+    source: run.source,
+    wallet: {
+      address: run.user_address,
+      identity: "",
+      sign_type: "JoyId",
+      message: "",
+    },
+    quest: run.quest,
+    ship_requirements: run.ship_requirements,
+  });
 }
 
 function buildBossFight(response: GenerateQuestResponse): BossFight {

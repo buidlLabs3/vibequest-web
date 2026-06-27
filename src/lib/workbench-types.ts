@@ -23,6 +23,8 @@ export interface BossFight {
 }
 
 export interface QuestData {
+  runId: string;
+  source?: string;
   questName: string;
   description: string;
   files: WorkbenchFile[];

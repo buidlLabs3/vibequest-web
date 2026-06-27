@@ -57,6 +57,7 @@ export type HealthResponse = {
     openai: boolean;
     ckb_rpc: boolean;
     fiber_rpc: boolean;
+    mongodb: boolean;
   };
   missing: string[];
   timestamp: string;
@@ -67,6 +68,63 @@ export type GenerateQuestRequest = {
   skill_track: string;
   difficulty: Difficulty;
   wallet: WalletProof;
+};
+
+export type StoredGateProgress = {
+  id: string;
+  name: string;
+  description: string;
+  is_completed: boolean;
+};
+
+export type QuestProgress = {
+  gates: StoredGateProgress[];
+  boss_fight_solved: boolean;
+  shipped: boolean;
+};
+
+export type QuestRunStatus = "in-progress" | "completed";
+
+export type QuestRunRecord = {
+  run_id: string;
+  user_address: string;
+  build_prompt: string;
+  skill_track: string;
+  difficulty: Difficulty;
+  source: "open-ai" | "core-fallback";
+  quest: QuestBlueprint;
+  ship_requirements: ShipRequirements;
+  progress: QuestProgress;
+  status: QuestRunStatus;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+};
+
+export type UserQuestCounts = {
+  created: number;
+  completed: number;
+  uncompleted: number;
+};
+
+export type UserQuestHistoryResponse = {
+  user: {
+    address: string;
+    quest_counts: UserQuestCounts;
+    created_at: string;
+    updated_at: string;
+    last_seen_at: string;
+  } | null;
+  stats: UserQuestCounts;
+  active_run: QuestRunRecord | null;
+  runs: QuestRunRecord[];
+};
+
+export type UpdateQuestProgressRequest = {
+  wallet: WalletProof;
+  gates?: StoredGateProgress[];
+  boss_fight_solved?: boolean;
+  shipped?: boolean;
 };
 
 export const API_BASE_URL =
@@ -121,4 +179,50 @@ export async function generateQuest(
   }
 
   return response.json() as Promise<GenerateQuestResponse>;
+}
+
+
+export async function getUserQuestHistory(address: string): Promise<UserQuestHistoryResponse> {
+  const response = await fetch(API_BASE_URL + "/users/" + encodeURIComponent(address) + "/quests", {
+    method: "GET",
+    headers: {
+      accept: "application/json",
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(await apiErrorMessage(response, "Quest history failed to load."));
+  }
+
+  return response.json() as Promise<UserQuestHistoryResponse>;
+}
+
+export async function updateQuestProgress(
+  runId: string,
+  payload: UpdateQuestProgressRequest,
+): Promise<QuestRunRecord> {
+  const response = await fetch(API_BASE_URL + "/quests/" + encodeURIComponent(runId) + "/progress", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(await apiErrorMessage(response, "Quest progress failed to save."));
+  }
+
+  return response.json() as Promise<QuestRunRecord>;
+}
+
+async function apiErrorMessage(response: Response, fallback: string) {
+  const bodyText = await response.text().catch(() => "");
+  try {
+    const body = JSON.parse(bodyText) as { error?: string };
+    return body.error ?? fallback;
+  } catch {
+    return bodyText || fallback;
+  }
 }

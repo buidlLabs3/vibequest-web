@@ -11,7 +11,7 @@ import {
   XCircle,
 } from "lucide-react";
 
-import type { HealthResponse } from "@/lib/api";
+import type { HealthResponse, QuestRunRecord, UserQuestCounts } from "@/lib/api";
 import type { ProofLog, QuestData, VerificationGate } from "@/lib/workbench-types";
 
 interface DashboardViewProps {
@@ -27,6 +27,10 @@ interface DashboardViewProps {
   onOpenQuestRun: () => void;
   onOpenWorkbench: () => void;
   onOpenShipGate: () => void;
+  questRuns: QuestRunRecord[];
+  questStats: UserQuestCounts;
+  historyLoading: boolean;
+  historyError: string | null;
 }
 
 export default function DashboardView({
@@ -42,9 +46,13 @@ export default function DashboardView({
   onOpenQuestRun,
   onOpenWorkbench,
   onOpenShipGate,
+  questRuns,
+  questStats,
+  historyLoading,
+  historyError,
 }: DashboardViewProps) {
   const infraReady = Boolean(
-    health?.integrations.openai && health.integrations.ckb_rpc && health.integrations.fiber_rpc,
+    health?.integrations.openai && health.integrations.ckb_rpc && health.integrations.fiber_rpc && health.integrations.mongodb,
   );
   const passedGates = gates.filter((gate) => gate.isCompleted).length;
   const activities = buildActivities({
@@ -109,6 +117,36 @@ export default function DashboardView({
         />
       </div>
 
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <MetricCard
+          icon={<Code2 className="h-5 w-5 text-electric-blue" />}
+          label="Created Quests"
+          value={String(questStats.created)}
+          detail="Total generated runs stored in MongoDB"
+          ready={questStats.created > 0}
+          actionLabel="Generate"
+          onAction={onOpenQuestRun}
+        />
+        <MetricCard
+          icon={<CheckCircle className="h-5 w-5 text-cyber-green" />}
+          label="Completed"
+          value={String(questStats.completed)}
+          detail="Runs shipped through the proof envelope"
+          ready={questStats.completed > 0}
+          actionLabel="Ship Gate"
+          onAction={onOpenShipGate}
+        />
+        <MetricCard
+          icon={<Clock className="h-5 w-5 text-warning-amber" />}
+          label="Uncompleted"
+          value={String(questStats.uncompleted)}
+          detail="Runs still waiting on gates, boss, or ship"
+          ready={questStats.uncompleted === 0 && questStats.created > 0}
+          actionLabel="Workbench"
+          onAction={onOpenWorkbench}
+        />
+      </div>
+
       <div className="grid grid-cols-1 gap-8 xl:grid-cols-[1fr_420px]">
         <div className="rounded-xl border border-glass-border bg-[#16181D] p-5">
           <div className="mb-4 flex items-center justify-between border-b border-glass-border pb-3">
@@ -138,6 +176,38 @@ export default function DashboardView({
         </div>
 
         <div className="flex flex-col gap-6">
+          <div className="rounded-xl border border-glass-border bg-[#16181D] p-5">
+            <div className="mb-4 flex items-center justify-between border-b border-glass-border pb-3">
+              <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Stored Quest Runs</h2>
+              <span className="font-mono text-xs text-on-surface-variant">{historyLoading ? "syncing" : questRuns.length}</span>
+            </div>
+            {historyError ? (
+              <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">
+                {historyError}
+              </div>
+            ) : questRuns.length > 0 ? (
+              <div className="flex max-h-[320px] flex-col gap-2 overflow-y-auto pr-1">
+                {questRuns.slice(0, 8).map((run) => (
+                  <div key={run.run_id} className="rounded-lg border border-glass-border/70 bg-[#0B0C0E] p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="line-clamp-1 text-xs font-bold text-white">{run.quest.title}</h3>
+                      <span className={"rounded border px-2 py-0.5 font-mono text-[10px] uppercase " + (run.status === "completed" ? "border-cyber-green/20 bg-cyber-green/10 text-cyber-green" : "border-warning-amber/20 bg-warning-amber/10 text-warning-amber")}>
+                        {run.status}
+                      </span>
+                    </div>
+                    <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-on-surface-variant">{run.build_prompt}</p>
+                    <p className="mt-2 font-mono text-[10px] uppercase text-on-surface-variant">
+                      {run.skill_track} / {run.difficulty} / {new Date(run.updated_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-glass-border p-5 text-center text-xs text-on-surface-variant">
+                No MongoDB quest runs stored for this wallet yet.
+              </div>
+            )}
+          </div>
           <div className="rounded-xl border border-glass-border bg-[#16181D] p-5">
             <div className="mb-4 flex items-center justify-between border-b border-glass-border pb-3">
               <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Proof History</h2>
