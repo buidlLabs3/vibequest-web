@@ -136,6 +136,8 @@ interface WorkbenchViewProps {
   setBossFightSolved: (solved: boolean) => void;
   shipped: boolean;
   onShip: () => void;
+  onChallengeComplete: () => void;
+  onWorkspaceVerified: () => void;
   ckbRpcOnline: boolean;
   generationError?: string | null;
 }
@@ -185,6 +187,8 @@ export default function WorkbenchView({
   setBossFightSolved,
   shipped,
   onShip,
+  onChallengeComplete,
+  onWorkspaceVerified,
   ckbRpcOnline,
   generationError,
 }: WorkbenchViewProps) {
@@ -259,6 +263,9 @@ export default function WorkbenchView({
             gate.id === "verification" ? { ...gate, isCompleted: verification.passed } : gate,
           ),
         );
+        if (verification.passed) {
+          onWorkspaceVerified();
+        }
       }
     }, 360);
   };
@@ -268,6 +275,7 @@ export default function WorkbenchView({
     if (bossAnswer === correctIndex) {
       setBossFeedback("SUCCESS");
       setBossFightSolved(true);
+      onChallengeComplete();
     } else {
       setBossFeedback("FAIL");
     }
@@ -281,6 +289,40 @@ export default function WorkbenchView({
   }, [questData?.questName]);
 
   const isAllGatesPassed = gates.every(g => g.isCompleted);
+  const fileChecksPassed = Boolean(gates.find((gate) => gate.id === "verification")?.isCompleted);
+  const lessonSteps = [
+    {
+      label: "Inspect",
+      description: "Read the generated verifier and test so the AI output is not a black box.",
+      complete: Boolean(selectedFile),
+    },
+    {
+      label: "Verify",
+      description: "Run checks that prove tests, proof signals, and denial paths exist.",
+      complete: fileChecksPassed,
+    },
+    {
+      label: "Explain",
+      description: "Answer the boss question to prove the trust boundary is understood.",
+      complete: bossFightSolved,
+    },
+    {
+      label: "Record",
+      description: "Save the badge, optionally claim rewards, then continue to the next quest.",
+      complete: shipped,
+    },
+  ];
+  const nextAction = !questData
+    ? "Generate a quest from Quest Run to begin."
+    : !walletBound
+      ? "Connect JoyID to bind this learning run."
+      : !fileChecksPassed
+        ? "Inspect the files, then run generated file checks."
+        : !bossFightSolved
+          ? "Answer the boss checklist to complete this challenge."
+          : !shipped
+            ? "Challenge complete. Record the badge or start the next quest."
+            : "Badge recorded. Move to the next quest when ready.";
 
   return (
     <div className="bg-[#0B0C0E] text-on-surface font-sans p-4 md:p-8 max-w-[1500px] mx-auto flex flex-col gap-8 min-h-screen">
@@ -367,33 +409,40 @@ export default function WorkbenchView({
                 <div className="flex items-center gap-2">
                   <TermIcon className="text-cyber-green w-5 h-5" />
                   <h2 className="text-sm font-mono font-bold uppercase tracking-wider text-white">
-                    Active Quest Checks
+                    Learning Path
                   </h2>
                 </div>
-                <span
-                  className={
-                    gates.find((gate) => gate.id === "verification")?.isCompleted
-                      ? "font-mono text-xs text-cyber-green"
-                      : "font-mono text-xs text-warning-amber"
-                  }
-                >
-                  {gates.find((gate) => gate.id === "verification")?.isCompleted ? "VERIFIED" : "PENDING"}
+                <span className={bossFightSolved ? "font-mono text-xs text-cyber-green" : "font-mono text-xs text-warning-amber"}>
+                  {bossFightSolved ? "COMPLETE" : "IN PROGRESS"}
                 </span>
               </div>
 
+              <div className="rounded-lg border border-electric-blue/20 bg-electric-blue/5 p-3">
+                <span className="font-mono text-[10px] uppercase tracking-wider text-electric-blue">Next Step</span>
+                <p className="mt-1 text-xs leading-relaxed text-white">{nextAction}</p>
+              </div>
+
               <div className="flex flex-col gap-3">
-                {questData.gates.map((gate, index) => (
+                {lessonSteps.map((step, index) => (
                   <div
-                    key={gate.id}
-                    className="p-3 rounded-lg border border-glass-border bg-[#0B0C0E]/50 flex gap-3"
+                    key={step.label}
+                    className={
+                      step.complete
+                        ? "p-3 rounded-lg border border-cyber-green/20 bg-cyber-green/5 flex gap-3"
+                        : "p-3 rounded-lg border border-glass-border bg-[#0B0C0E]/50 flex gap-3"
+                    }
                   >
-                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-electric-blue/10 text-[10px] font-mono font-bold text-electric-blue">
-                      {index + 1}
+                    <span className={
+                      step.complete
+                        ? "grid h-6 w-6 shrink-0 place-items-center rounded bg-cyber-green/15 text-[10px] font-mono font-bold text-cyber-green"
+                        : "grid h-6 w-6 shrink-0 place-items-center rounded bg-electric-blue/10 text-[10px] font-mono font-bold text-electric-blue"
+                    }>
+                      {step.complete ? <CheckCircle className="h-3.5 w-3.5" /> : index + 1}
                     </span>
                     <div className="min-w-0">
-                      <h3 className="text-xs font-bold font-mono text-white">{gate.name}</h3>
+                      <h3 className="text-xs font-bold font-mono text-white">{step.label}</h3>
                       <p className="text-[11px] text-on-surface-variant leading-normal mt-1">
-                        {gate.description}
+                        {step.description}
                       </p>
                     </div>
                   </div>
@@ -617,7 +666,7 @@ export default function WorkbenchView({
                 <div className="flex items-center gap-3 w-full sm:w-auto">
                   <button
                     onClick={handleBossSubmit}
-                    disabled={bossAnswer === null || bossFeedback === "SUCCESS"}
+                    disabled={bossAnswer === null || bossFeedback === "SUCCESS" || !fileChecksPassed}
                     className="px-6 py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold font-mono text-xs uppercase tracking-wider rounded transition-all cursor-pointer shrink-0"
                   >
                     SUBMIT RUN
@@ -630,16 +679,22 @@ export default function WorkbenchView({
                   </button>
                 </div>
 
+                {!fileChecksPassed && (
+                  <span className="text-warning-amber font-mono text-xs uppercase tracking-wider font-bold flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4" />
+                    RUN FILE CHECKS BEFORE SUBMITTING.
+                  </span>
+                )}
                 {bossFeedback === "SUCCESS" && (
                   <span className="text-cyber-green font-mono text-xs uppercase tracking-wider font-bold flex items-center gap-2">
                     <CheckCircle className="w-4 h-4" />
-                    CHALLENGE COMPLETED. PROOF SYNCHRONIZED!
+                    CHALLENGE COMPLETE. LEARNING RECORD UPDATED!
                   </span>
                 )}
                 {bossFeedback === "FAIL" && (
                   <span className="text-red-500 font-mono text-xs uppercase tracking-wider font-bold flex items-center gap-2">
                     <AlertCircle className="w-4 h-4" />
-                    LOCK FAULT DEPLOYED. TRY AGAIN!
+                    NOT QUITE. REVIEW THE TRUST BOUNDARY AND TRY AGAIN.
                   </span>
                 )}
               </div>
@@ -683,22 +738,46 @@ export default function WorkbenchView({
             {bossFightSolved && (
               <div className="bg-cyber-green/5 border border-cyber-green/20 rounded-lg p-4">
                 <span className="font-mono text-[10px] text-cyber-green uppercase tracking-wider block mb-1 font-bold">
-                  CINEMATIC VICTORY SIGNED
+                  Challenge Complete
                 </span>
-                <p className="text-[11px] font-sans text-gray-300 leading-relaxed italic">
-                  &ldquo;{questData.bossFight.victoryMessage}&rdquo;
+                <h3 className="text-lg font-black text-white">Success badge ready</h3>
+                <p className="mt-2 text-[11px] font-sans text-gray-300 leading-relaxed">
+                  {questData.bossFight.victoryMessage}
                 </p>
+                <div className="mt-4 grid gap-2 text-[11px] font-mono text-gray-300">
+                  <div className="flex items-center justify-between rounded border border-cyber-green/15 bg-black/20 px-3 py-2">
+                    <span>Learning record</span>
+                    <span className="text-cyber-green">UPDATED</span>
+                  </div>
+                  <div className="flex items-center justify-between rounded border border-cyber-green/15 bg-black/20 px-3 py-2">
+                    <span>Reward claim</span>
+                    <span className={isAllGatesPassed ? "text-cyber-green" : "text-warning-amber"}>
+                      {isAllGatesPassed ? "READY" : "WAITING"}
+                    </span>
+                  </div>
+                </div>
+                {generationError && (
+                  <p className="mt-3 rounded border border-warning-amber/25 bg-warning-amber/10 p-2 text-[10px] leading-relaxed text-warning-amber">
+                    Cloud save may be degraded. Your local learning record is kept; reward claiming needs backend persistence.
+                  </p>
+                )}
                 <button
                   onClick={onShip}
                   disabled={!isAllGatesPassed}
                   className="w-full py-2.5 bg-cyber-green hover:brightness-110 disabled:brightness-50 disabled:cursor-not-allowed text-black font-extrabold text-xs uppercase tracking-wider rounded mt-4 transition-all flex items-center justify-center gap-1 cursor-pointer"
                 >
-                  <Award className="w-4 h-4 animate-bounce" />
-                  LOCK PROOF ENVELOPE
+                  <Award className="w-4 h-4" />
+                  Record Badge / Claim Reward
+                </button>
+                <button
+                  onClick={onOpenQuestRun}
+                  className="mt-2 w-full rounded border border-electric-blue/40 px-3 py-2.5 font-mono text-xs font-bold uppercase tracking-wider text-electric-blue transition-colors hover:bg-electric-blue/10"
+                >
+                  Start Next Quest
                 </button>
                 {!isAllGatesPassed && (
                   <span className="text-[9px] font-mono text-red-400 text-center block mt-1.5 leading-tight">
-                    * Wallet, backend readiness, and generated file checks must pass before shipping!
+                    Run file checks and keep JoyID/Core ready before claiming.
                   </span>
                 )}
               </div>

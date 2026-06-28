@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 
 import type { HealthResponse, QuestRunRecord, RewardClaimRecord, UserQuestCounts } from "@/lib/api";
-import type { ProofLog, QuestData, VerificationGate } from "@/lib/workbench-types";
+import type { PracticeRecord, ProofLog, QuestData, VerificationGate } from "@/lib/workbench-types";
 
 interface DashboardViewProps {
   walletBound: boolean;
@@ -31,6 +31,7 @@ interface DashboardViewProps {
   questRuns: QuestRunRecord[];
   questStats: UserQuestCounts;
   rewardClaims: RewardClaimRecord[];
+  practiceRecords: PracticeRecord[];
   historyLoading: boolean;
   historyError: string | null;
 }
@@ -51,6 +52,7 @@ export default function DashboardView({
   questRuns,
   questStats,
   rewardClaims,
+  practiceRecords,
   historyLoading,
   historyError,
 }: DashboardViewProps) {
@@ -58,8 +60,7 @@ export default function DashboardView({
     health?.integrations.openai && health.integrations.ckb_rpc && health.integrations.fiber_rpc && health.integrations.mongodb,
   );
   const passedGates = gates.filter((gate) => gate.isCompleted).length;
-  const paidClaims = rewardClaims.filter((claim) => claim.status === "paid").length;
-  const openClaims = rewardClaims.filter((claim) => claim.status === "verified" || claim.status === "paying" || claim.status === "pending").length;
+  const completedPractice = practiceRecords.filter((record) => record.status === "completed" || record.status === "shipped").length;
   const activities = buildActivities({
     walletBound,
     proofLogs,
@@ -152,12 +153,12 @@ export default function DashboardView({
         />
         <MetricCard
           icon={<ReceiptText className="h-5 w-5 text-electric-blue" />}
-          label="Reward Claims"
-          value={String(rewardClaims.length)}
-          detail={paidClaims > 0 ? `${paidClaims} paid` : openClaims > 0 ? `${openClaims} awaiting payout` : "No claims yet"}
-          ready={paidClaims > 0}
-          actionLabel="Ledger"
-          onAction={onOpenShipGate}
+          label="Learning Records"
+          value={String(practiceRecords.length)}
+          detail={completedPractice > 0 ? `${completedPractice} completed practice runs` : "Local quest attempts appear here"}
+          ready={completedPractice > 0}
+          actionLabel="Review"
+          onAction={onOpenWorkbench}
         />
       </div>
 
@@ -219,6 +220,41 @@ export default function DashboardView({
             ) : (
               <div className="rounded-lg border border-dashed border-glass-border p-5 text-center text-xs text-on-surface-variant">
                 No MongoDB quest runs stored for this wallet yet.
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-glass-border bg-[#16181D] p-5">
+            <div className="mb-4 flex items-center justify-between border-b border-glass-border pb-3">
+              <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Learning Records</h2>
+              <span className="font-mono text-xs text-on-surface-variant">{practiceRecords.length}</span>
+            </div>
+            {practiceRecords.length > 0 ? (
+              <div className="flex max-h-[320px] flex-col gap-2 overflow-y-auto pr-1">
+                {practiceRecords.slice(0, 8).map((record) => (
+                  <div key={record.runId} className="rounded-lg border border-glass-border/70 bg-[#0B0C0E] p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="line-clamp-1 text-xs font-bold text-white">{record.title}</h3>
+                      <span className={"rounded border px-2 py-0.5 font-mono text-[10px] uppercase " + practiceStatusClass(record.status)}>
+                        {record.status}
+                      </span>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase text-on-surface-variant">
+                      <span>{record.savedToCloud ? "cloud saved" : "local practice"}</span>
+                      <span>/</span>
+                      <span>{record.source ?? "vibequest"}</span>
+                      <span>/</span>
+                      <span>{new Date(record.updatedAt).toLocaleDateString()}</span>
+                    </div>
+                    {record.warning ? (
+                      <p className="mt-2 line-clamp-2 text-[11px] leading-relaxed text-warning-amber">{record.warning}</p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-glass-border p-5 text-center text-xs text-on-surface-variant">
+                Generate, verify, and finish a quest to build your learning trail.
               </div>
             )}
           </div>
@@ -400,6 +436,16 @@ function buildActivities({
     },
     ...proofEvents,
   ];
+}
+
+function practiceStatusClass(status: PracticeRecord["status"]) {
+  if (status === "shipped" || status === "completed") {
+    return "border-cyber-green/20 bg-cyber-green/10 text-cyber-green";
+  }
+  if (status === "verified") {
+    return "border-electric-blue/20 bg-electric-blue/10 text-electric-blue";
+  }
+  return "border-warning-amber/20 bg-warning-amber/10 text-warning-amber";
 }
 
 function rewardStatusClass(status: string) {

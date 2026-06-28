@@ -38,3 +38,17 @@ export interface ProofLog {
   timestamp: string;
   status: string;
 }
+
+export type PracticeRecordStatus = "generated" | "verified" | "completed" | "shipped";
+
+export interface PracticeRecord {
+  runId: string;
+  walletAddress: string;
+  title: string;
+  source?: string;
+  status: PracticeRecordStatus;
+  savedToCloud: boolean;
+  warning?: string | null;
+  updatedAt: string;
+  completedAt?: string | null;
+}

@@ -26,6 +26,7 @@ import {
 } from "@/lib/api";
 import type {
   BossFight,
+  PracticeRecord,
   ProofLog,
   QuestData,
   VerificationGate,
@@ -48,6 +49,7 @@ const STORAGE_KEYS = {
   legacyWalletProof: "vibequest.walletProof",
   legacySecpWalletProof: "vibequest.walletProof.v2",
   proofLogs: "vibequest.proofLogs",
+  practiceRecords: "vibequest.practiceRecords.v1",
 } as const;
 
 const TAB_IDS = new Set<TabId>([
@@ -98,6 +100,7 @@ export function VibeQuestWorkbench() {
   const [selectedFile, setSelectedFile] = useState<WorkbenchFile | null>(null);
   const [gates, setGates] = useState<VerificationGate[]>(EMPTY_GATES);
   const [proofLogs, setProofLogs] = useState<ProofLog[]>([]);
+  const [practiceRecords, setPracticeRecords] = useState<PracticeRecord[]>([]);
   const [questRuns, setQuestRuns] = useState<QuestRunRecord[]>([]);
   const [rewardClaims, setRewardClaims] = useState<RewardClaimRecord[]>([]);
   const [shipping, setShipping] = useState(false);
@@ -117,6 +120,11 @@ export function VibeQuestWorkbench() {
       health.integrations.mongodb,
   );
   const walletBound = Boolean(walletProof);
+  const walletAddress = walletProof?.address;
+  const walletPracticeRecords = useMemo(
+    () => practiceRecords.filter((record) => record.walletAddress === walletAddress),
+    [practiceRecords, walletAddress],
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -128,6 +136,7 @@ export function VibeQuestWorkbench() {
     window.localStorage.removeItem(STORAGE_KEYS.legacyWalletProof);
     window.localStorage.removeItem(STORAGE_KEYS.legacySecpWalletProof);
     const restoredProofLogs = parseProofLogs(window.localStorage.getItem(STORAGE_KEYS.proofLogs));
+    const restoredPracticeRecords = parsePracticeRecords(window.localStorage.getItem(STORAGE_KEYS.practiceRecords));
 
     if (restoredTab) {
       setActiveTab(restoredTab);
@@ -139,6 +148,10 @@ export function VibeQuestWorkbench() {
 
     if (restoredProofLogs.length > 0) {
       setProofLogs(restoredProofLogs);
+    }
+
+    if (restoredPracticeRecords.length > 0) {
+      setPracticeRecords(restoredPracticeRecords);
     }
 
     setSessionReady(true);
@@ -179,6 +192,18 @@ export function VibeQuestWorkbench() {
       window.localStorage.removeItem(STORAGE_KEYS.proofLogs);
     }
   }, [proofLogs, sessionReady]);
+
+  useEffect(() => {
+    if (!sessionReady || typeof window === "undefined") {
+      return;
+    }
+
+    if (practiceRecords.length > 0) {
+      window.localStorage.setItem(STORAGE_KEYS.practiceRecords, JSON.stringify(practiceRecords));
+    } else {
+      window.localStorage.removeItem(STORAGE_KEYS.practiceRecords);
+    }
+  }, [practiceRecords, sessionReady]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -227,6 +252,58 @@ export function VibeQuestWorkbench() {
     );
   }, [infrastructureReady, walletBound]);
 
+  const upsertPracticeRecord = useCallback((nextRecord: PracticeRecord) => {
+    setPracticeRecords((previous) => {
+      const existing = previous.find((record) => record.runId === nextRecord.runId);
+      const merged = existing ? { ...existing, ...nextRecord } : nextRecord;
+      return [
+        merged,
+        ...previous.filter((record) => record.runId !== nextRecord.runId),
+      ]
+        .sort((first, second) => Date.parse(second.updatedAt) - Date.parse(first.updatedAt))
+        .slice(0, 30);
+    });
+  }, []);
+
+  const markCurrentPracticeRecord = useCallback(
+    (status: PracticeRecord["status"], options?: { shipped?: boolean; savedToCloud?: boolean }) => {
+      if (!walletProof || !questData) {
+        return;
+      }
+
+      const now = new Date().toISOString();
+      setPracticeRecords((previous) => {
+        const existing = previous.find((record) => record.runId === questData.runId);
+        const requestedStatus = options?.shipped ? "shipped" : status;
+        const nextStatus = existing
+          ? higherPracticeStatus(existing.status, requestedStatus)
+          : requestedStatus;
+        const completedAt = nextStatus === "completed" || nextStatus === "shipped"
+          ? existing?.completedAt ?? now
+          : existing?.completedAt ?? null;
+        const merged: PracticeRecord = {
+          runId: questData.runId,
+          walletAddress: walletProof.address,
+          title: questData.questName,
+          source: questData.source,
+          status: nextStatus,
+          savedToCloud: options?.savedToCloud ?? existing?.savedToCloud ?? false,
+          warning: generationError ?? existing?.warning ?? null,
+          updatedAt: now,
+          completedAt,
+        };
+
+        return [
+          merged,
+          ...previous.filter((record) => record.runId !== questData.runId),
+        ]
+          .sort((first, second) => Date.parse(second.updatedAt) - Date.parse(first.updatedAt))
+          .slice(0, 30);
+      });
+    },
+    [generationError, questData, walletProof],
+  );
+
   const applyQuestRun = useCallback((run: QuestRunRecord) => {
     const mappedQuest = mapQuestRunRecord(run);
     setQuestData(mappedQuest);
@@ -242,7 +319,23 @@ export function VibeQuestWorkbench() {
     setBuildRequest(run.build_prompt);
     setSkillTrack(run.skill_track);
     setDifficulty(run.difficulty.toUpperCase());
-  }, []);
+
+    const verificationPassed = Boolean(
+      run.progress.gates.find((gate) => gate.id === "verification")?.is_completed,
+    );
+
+    upsertPracticeRecord({
+      runId: run.run_id,
+      walletAddress: run.user_address,
+      title: run.quest.title,
+      source: run.source,
+      status: run.progress.shipped ? "shipped" : run.progress.boss_fight_solved ? "completed" : verificationPassed ? "verified" : "generated",
+      savedToCloud: true,
+      warning: null,
+      updatedAt: run.updated_at,
+      completedAt: run.completed_at,
+    });
+  }, [upsertPracticeRecord]);
 
   const loadQuestHistory = useCallback(
     async (address: string, preferredRunId?: string) => {
@@ -423,7 +516,19 @@ export function VibeQuestWorkbench() {
             : null,
           response.persistence?.warning ?? null,
         ].filter(Boolean);
-        setGenerationError(warnings.length > 0 ? warnings.join(" ") : null);
+        const warningText = warnings.length > 0 ? warnings.join(" ") : null;
+        setGenerationError(warningText);
+        upsertPracticeRecord({
+          runId: response.run_id,
+          walletAddress: walletProof.address,
+          title: mappedQuest.questName,
+          source: response.source,
+          status: "generated",
+          savedToCloud: response.persistence?.saved !== false,
+          warning: warningText,
+          updatedAt: new Date().toISOString(),
+          completedAt: null,
+        });
         if (response.persistence?.saved !== false) {
           void loadQuestHistory(walletProof.address, response.run_id);
         }
@@ -443,7 +548,7 @@ export function VibeQuestWorkbench() {
         setGenerating(false);
       }
     },
-    [loadQuestHistory, refreshHealth, walletProof],
+    [loadQuestHistory, refreshHealth, upsertPracticeRecord, walletProof],
   );
 
   const handleShipCargo = useCallback(
@@ -469,6 +574,7 @@ export function VibeQuestWorkbench() {
           fiber_invoice: fiberInvoice,
         });
         applyQuestRun(response.run);
+        markCurrentPracticeRecord("completed", { shipped: true, savedToCloud: true });
         setRewardClaims((previous) => [
           response.claim,
           ...previous.filter((claim) => claim.claim_id !== response.claim.claim_id),
@@ -481,7 +587,7 @@ export function VibeQuestWorkbench() {
         setShipping(false);
       }
     },
-    [applyQuestRun, bossFightSolved, gates, loadQuestHistory, questData?.runId, walletProof],
+    [applyQuestRun, bossFightSolved, gates, loadQuestHistory, markCurrentPracticeRecord, questData?.runId, walletProof],
   );
 
   const activeRewardClaim = useMemo(
@@ -538,6 +644,8 @@ export function VibeQuestWorkbench() {
             setBossFightSolved={handleSetBossFightSolved}
             shipped={shipped}
             onShip={() => setActiveTab("ship-gate")}
+            onChallengeComplete={() => markCurrentPracticeRecord("completed")}
+            onWorkspaceVerified={() => markCurrentPracticeRecord("verified")}
             ckbRpcOnline={infrastructureReady}
             generationError={generationError}
           />
@@ -560,6 +668,7 @@ export function VibeQuestWorkbench() {
             questRuns={questRuns}
             questStats={questStats}
             rewardClaims={rewardClaims}
+            practiceRecords={walletPracticeRecords}
             historyLoading={historyLoading}
             historyError={historyError}
           />
@@ -684,6 +793,49 @@ function parseProofLogs(value: string | null): ProofLog[] {
   }
 
   return [];
+}
+
+function parsePracticeRecords(value: string | null): PracticeRecord[] {
+  if (!value) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value) as PracticeRecord[];
+    if (Array.isArray(parsed)) {
+      return parsed.filter(
+        (record) =>
+          typeof record.runId === "string" &&
+          typeof record.walletAddress === "string" &&
+          typeof record.title === "string" &&
+          isPracticeRecordStatus(record.status) &&
+          typeof record.savedToCloud === "boolean" &&
+          typeof record.updatedAt === "string",
+      );
+    }
+  } catch {
+    return [];
+  }
+
+  return [];
+}
+
+function isPracticeRecordStatus(value: unknown): value is PracticeRecord["status"] {
+  return value === "generated" || value === "verified" || value === "completed" || value === "shipped";
+}
+
+function higherPracticeStatus(
+  current: PracticeRecord["status"],
+  next: PracticeRecord["status"],
+): PracticeRecord["status"] {
+  const rank: Record<PracticeRecord["status"], number> = {
+    generated: 0,
+    verified: 1,
+    completed: 2,
+    shipped: 3,
+  };
+
+  return rank[next] >= rank[current] ? next : current;
 }
 
 function normalizeDifficulty(value: string): Difficulty {
