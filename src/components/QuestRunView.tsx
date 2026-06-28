@@ -202,7 +202,10 @@ export default function QuestRunView({
             {generationError && (
               <div className="rounded-lg border border-red-500/25 bg-red-500/10 p-3 text-xs leading-relaxed text-red-300 flex gap-2">
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>{generationError}</span>
+                <span>
+                  {generationError}
+                  <span className="mt-1 block text-red-200/80">No template quest was loaded. Adjust the prompt if needed, then regenerate.</span>
+                </span>
               </div>
             )}
           </div>

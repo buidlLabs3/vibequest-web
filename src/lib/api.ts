@@ -24,7 +24,7 @@ export type PersistenceStatus = {
 
 export type GenerateQuestResponse = {
   run_id: string;
-  source: "open-ai" | "core-fallback";
+  source: "open-ai";
   wallet: WalletBinding;
   quest: QuestBlueprint;
   ship_requirements: ShipRequirements;
@@ -127,7 +127,7 @@ export type QuestRunRecord = {
   build_prompt: string;
   skill_track: string;
   difficulty: Difficulty;
-  source: "open-ai" | "core-fallback";
+  source: "open-ai";
   quest: QuestBlueprint;
   ship_requirements: ShipRequirements;
   progress: QuestProgress;
@@ -288,10 +288,38 @@ export async function completeQuest(
 
 async function apiErrorMessage(response: Response, fallback: string) {
   const bodyText = await response.text().catch(() => "");
+  let message = fallback;
+
   try {
     const body = JSON.parse(bodyText) as { error?: string };
-    return body.error ?? fallback;
+    message = body.error ?? fallback;
   } catch {
-    return bodyText || fallback;
+    message = bodyText || fallback;
   }
+
+  return cleanApiErrorMessage(message, response.status, fallback);
+}
+
+function cleanApiErrorMessage(message: string, status: number, fallback: string) {
+  const lower = message.toLowerCase();
+
+  if (
+    lower.includes("server selection timeout") ||
+    lower.includes("replicasetnoprimary") ||
+    lower.includes("systemoverloadederror") ||
+    lower.includes("database operation failed") ||
+    lower.includes("mongodb")
+  ) {
+    return "Quest history is temporarily unavailable. Please refresh in a moment.";
+  }
+
+  if (lower.includes("openai") || lower.includes("ai quest generation")) {
+    return message;
+  }
+
+  if (status >= 500 && message.length > 180) {
+    return fallback;
+  }
+
+  return message || fallback;
 }

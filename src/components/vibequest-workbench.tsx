@@ -507,16 +507,14 @@ export function VibeQuestWorkbench() {
           difficulty: normalizeDifficulty(rawDifficulty),
           wallet: walletProof,
         });
+        if (response.source !== "open-ai") {
+          throw new Error("AI quest generation did not complete. Please regenerate the quest.");
+        }
+
         const mappedQuest = mapQuestResponse(response);
         setQuestData(mappedQuest);
         setSelectedFile(mappedQuest.files[0] ?? null);
-        const warnings = [
-          response.source === "core-fallback"
-            ? "Quick quest loaded. The AI response was skipped or too slow, so VibeQuest Core used its lightweight compiler."
-            : null,
-          response.persistence?.warning ?? null,
-        ].filter(Boolean);
-        const warningText = warnings.length > 0 ? warnings.join(" ") : null;
+        const warningText = response.persistence?.warning ?? null;
         setGenerationError(warningText);
         upsertPracticeRecord({
           runId: response.run_id,
@@ -529,9 +527,7 @@ export function VibeQuestWorkbench() {
           updatedAt: new Date().toISOString(),
           completedAt: null,
         });
-        if (response.persistence?.saved !== false) {
-          void loadQuestHistory(walletProof.address, response.run_id);
-        }
+        void loadQuestHistory(walletProof.address, response.run_id);
         return true;
       } catch (error) {
         const message = error instanceof Error ? error.message : "Quest generation failed.";
