@@ -72,3 +72,16 @@ export interface PracticeRecord {
   skillTrack?: string;
   difficulty?: string;
 }
+
+export interface ActiveQuestSession {
+  questData: QuestData;
+  selectedFilePath?: string | null;
+  gates: VerificationGate[];
+  bossFightSolved: boolean;
+  shipped: boolean;
+  buildRequest: string;
+  skillTrack: string;
+  difficulty: string;
+  generationError?: string | null;
+  updatedAt: string;
+}

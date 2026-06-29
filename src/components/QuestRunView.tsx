@@ -101,7 +101,13 @@ export default function QuestRunView({
     }
   };
 
+  const learningOnlyRequest = isLearningOnlyRequest(buildRequest);
+
   const handleLaunchQuest = async () => {
+    if (learningOnlyRequest) {
+      return;
+    }
+
     const generated = await onGenerateQuest(buildRequest, skillTrack, difficulty);
     if (generated) {
       setActiveTab("workbench");
@@ -233,9 +239,15 @@ export default function QuestRunView({
               </div>
             </div>
 
+            {learningOnlyRequest && (
+              <div className="rounded-lg border border-electric-blue/25 bg-electric-blue/10 p-3 text-xs leading-relaxed text-electric-blue">
+                This is a learning request, not a coding quest. The next VibeQuest learning mode will turn this into a lesson path, tutor chat, checkpoint questions, then quests based on completed lessons.
+              </div>
+            )}
+
             <button
               onClick={handleLaunchQuest}
-              disabled={generating || !buildRequest.trim()}
+              disabled={generating || !buildRequest.trim() || learningOnlyRequest}
               className="w-full py-4 bg-cyber-green hover:brightness-110 disabled:brightness-50 text-black font-extrabold text-sm uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-[0_0_20px_rgba(0,255,100,0.2)]"
             >
               {generating ? (
@@ -265,4 +277,17 @@ export default function QuestRunView({
       </div>
     </div>
   );
+}
+
+function isLearningOnlyRequest(value: string) {
+  const request = value.trim().toLowerCase();
+
+  if (!request) {
+    return false;
+  }
+
+  const asksToLearn = /^(teach|explain|learn|what is|what are|how does|help me understand|i want to learn|tell me about)\b/.test(request);
+  const asksToBuild = /\b(build|create|implement|code|write|test|verifier|function|app|contract|script|patch|debug|ship|generate a quest)\b/.test(request);
+
+  return asksToLearn && !asksToBuild;
 }

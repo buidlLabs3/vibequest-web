@@ -25,6 +25,7 @@ import {
   type WalletProof,
 } from "@/lib/api";
 import type {
+  ActiveQuestSession,
   BossFight,
   LearningResource,
   PracticeRecord,
@@ -51,6 +52,7 @@ const STORAGE_KEYS = {
   legacySecpWalletProof: "vibequest.walletProof.v2",
   proofLogs: "vibequest.proofLogs",
   practiceRecords: "vibequest.practiceRecords.v1",
+  activeQuestSession: "vibequest.activeQuestSession.v1",
 } as const;
 
 const TAB_IDS = new Set<TabId>([
@@ -138,6 +140,7 @@ export function VibeQuestWorkbench() {
     window.localStorage.removeItem(STORAGE_KEYS.legacySecpWalletProof);
     const restoredProofLogs = parseProofLogs(window.localStorage.getItem(STORAGE_KEYS.proofLogs));
     const restoredPracticeRecords = parsePracticeRecords(window.localStorage.getItem(STORAGE_KEYS.practiceRecords));
+    const restoredActiveSession = parseActiveQuestSession(window.localStorage.getItem(STORAGE_KEYS.activeQuestSession));
 
     if (restoredTab) {
       setActiveTab(restoredTab);
@@ -153,6 +156,22 @@ export function VibeQuestWorkbench() {
 
     if (restoredPracticeRecords.length > 0) {
       setPracticeRecords(restoredPracticeRecords);
+    }
+
+    if (restoredActiveSession) {
+      setQuestData(restoredActiveSession.questData);
+      setSelectedFile(
+        restoredActiveSession.questData.files.find((file) => file.path === restoredActiveSession.selectedFilePath) ??
+          restoredActiveSession.questData.files[0] ??
+          null,
+      );
+      setGates(restoredActiveSession.gates);
+      setBossFightSolved(restoredActiveSession.bossFightSolved);
+      setShipped(restoredActiveSession.shipped);
+      setBuildRequest(restoredActiveSession.buildRequest);
+      setSkillTrack(restoredActiveSession.skillTrack);
+      setDifficulty(restoredActiveSession.difficulty);
+      setGenerationError(restoredActiveSession.generationError ?? null);
     }
 
     setSessionReady(true);
@@ -205,6 +224,32 @@ export function VibeQuestWorkbench() {
       window.localStorage.removeItem(STORAGE_KEYS.practiceRecords);
     }
   }, [practiceRecords, sessionReady]);
+
+  useEffect(() => {
+    if (!sessionReady || typeof window === "undefined") {
+      return;
+    }
+
+    if (!questData) {
+      window.localStorage.removeItem(STORAGE_KEYS.activeQuestSession);
+      return;
+    }
+
+    const session: ActiveQuestSession = {
+      questData,
+      selectedFilePath: selectedFile?.path ?? null,
+      gates,
+      bossFightSolved,
+      shipped,
+      buildRequest,
+      skillTrack,
+      difficulty,
+      generationError,
+      updatedAt: new Date().toISOString(),
+    };
+
+    window.localStorage.setItem(STORAGE_KEYS.activeQuestSession, JSON.stringify(session));
+  }, [bossFightSolved, buildRequest, difficulty, gates, generationError, questData, selectedFile?.path, sessionReady, shipped, skillTrack]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -405,8 +450,9 @@ export function VibeQuestWorkbench() {
         const activeRun = preferredRunId
           ? history.runs.find((run) => run.run_id === preferredRunId) ?? history.active_run
           : history.active_run;
+        const shouldApplyHistoryRun = Boolean(preferredRunId || !questData?.runId);
 
-        if (activeRun) {
+        if (activeRun && shouldApplyHistoryRun) {
           applyQuestRun(activeRun);
         }
       } catch (error) {
@@ -416,7 +462,7 @@ export function VibeQuestWorkbench() {
         setHistoryLoading(false);
       }
     },
-    [applyQuestRun],
+    [applyQuestRun, questData?.runId],
   );
 
   useEffect(() => {
@@ -531,6 +577,9 @@ export function VibeQuestWorkbench() {
     setQuestStats({ created: 0, completed: 0, uncompleted: 0 });
     setHistoryError(null);
     setShipError(null);
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(STORAGE_KEYS.activeQuestSession);
+    }
   }, []);
 
   const handleGenerateQuest = useCallback(
@@ -892,6 +941,75 @@ function parsePracticeRecords(value: string | null): PracticeRecord[] {
   }
 
   return [];
+}
+
+function parseActiveQuestSession(value: string | null): ActiveQuestSession | null {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(value) as ActiveQuestSession;
+    if (
+      isQuestData(parsed.questData) &&
+      Array.isArray(parsed.gates) &&
+      parsed.gates.every(isVerificationGate) &&
+      typeof parsed.bossFightSolved === "boolean" &&
+      typeof parsed.shipped === "boolean" &&
+      typeof parsed.buildRequest === "string" &&
+      typeof parsed.skillTrack === "string" &&
+      typeof parsed.difficulty === "string" &&
+      typeof parsed.updatedAt === "string"
+    ) {
+      return parsed;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function isQuestData(value: unknown): value is QuestData {
+  const quest = value as QuestData;
+
+  return Boolean(
+    quest &&
+      typeof quest.runId === "string" &&
+      typeof quest.questName === "string" &&
+      typeof quest.description === "string" &&
+      Array.isArray(quest.files) &&
+      quest.files.every(isWorkbenchFile) &&
+      Array.isArray(quest.gates) &&
+      quest.gates.every(isVerificationGate) &&
+      quest.bossFight &&
+      typeof quest.bossFight.title === "string" &&
+      typeof quest.bossFight.question === "string",
+  );
+}
+
+function isWorkbenchFile(value: unknown): value is WorkbenchFile {
+  const file = value as WorkbenchFile;
+
+  return Boolean(
+    file &&
+      typeof file.name === "string" &&
+      typeof file.path === "string" &&
+      typeof file.content === "string" &&
+      typeof file.description === "string",
+  );
+}
+
+function isVerificationGate(value: unknown): value is VerificationGate {
+  const gate = value as VerificationGate;
+
+  return Boolean(
+    gate &&
+      typeof gate.id === "string" &&
+      typeof gate.name === "string" &&
+      typeof gate.description === "string" &&
+      typeof gate.isCompleted === "boolean",
+  );
 }
 
 function isPracticeRecordStatus(value: unknown): value is PracticeRecord["status"] {
