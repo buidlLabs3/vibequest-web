@@ -144,6 +144,73 @@ export type UserQuestCounts = {
   uncompleted: number;
 };
 
+
+export type LearningResourceDto = {
+  title: string;
+  url: string;
+  reason: string;
+};
+
+export type LearningOptionDto = {
+  label: string;
+  feedback: string;
+};
+
+export type LearningCheckpointDto = {
+  question: string;
+  options: LearningOptionDto[];
+  correct_index: number;
+  explanation: string;
+  follow_up_question: string;
+};
+
+export type LearningLessonDto = {
+  id: string;
+  title: string;
+  why_it_matters: string;
+  explanation: string;
+  concepts: string[];
+  checkpoint: LearningCheckpointDto;
+  quest_bridge: string;
+};
+
+export type LearningModuleDto = {
+  title: string;
+  learner_profile: string;
+  outcome: string;
+  lessons: LearningLessonDto[];
+  capstone_quest_prompt: string;
+  resources: LearningResourceDto[];
+};
+
+export type GenerateLearningModuleRequest = {
+  interests: string[];
+  learner_goal: string;
+  background: string;
+  pace: string;
+};
+
+export type GenerateLearningModuleResponse = {
+  module_id: string;
+  source: "open-ai";
+  module: LearningModuleDto;
+};
+
+export type LearningTutorRequest = {
+  module_title: string;
+  lesson_title: string;
+  lesson_context: string;
+  question: string;
+};
+
+export type LearningTutorResponse = {
+  source: "open-ai";
+  answer: string;
+  why_it_matters: string;
+  follow_up_question: string;
+  references: LearningResourceDto[];
+};
+
 export type UserQuestHistoryResponse = {
   user: {
     address: string;
@@ -231,6 +298,43 @@ export async function generateQuest(
   return response.json() as Promise<GenerateQuestResponse>;
 }
 
+
+
+export async function generateLearningModule(
+  payload: GenerateLearningModuleRequest,
+): Promise<GenerateLearningModuleResponse> {
+  const response = await fetch(`${API_BASE_URL}/ai/learning/module`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(await apiErrorMessage(response, "Learning module generation failed."));
+  }
+
+  return response.json() as Promise<GenerateLearningModuleResponse>;
+}
+
+export async function askLearningTutor(
+  payload: LearningTutorRequest,
+): Promise<LearningTutorResponse> {
+  const response = await fetch(`${API_BASE_URL}/ai/learning/tutor`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(await apiErrorMessage(response, "Learning tutor failed to answer."));
+  }
+
+  return response.json() as Promise<LearningTutorResponse>;
+}
 
 export async function getUserQuestHistory(address: string): Promise<UserQuestHistoryResponse> {
   const response = await fetch(API_BASE_URL + "/users/" + encodeURIComponent(address) + "/quests", {

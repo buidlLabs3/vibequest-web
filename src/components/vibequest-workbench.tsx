@@ -5,13 +5,16 @@ import { useCallback, useEffect, useMemo, useState, type SetStateAction } from "
 
 import DashboardView from "@/components/DashboardView";
 import LandingPage from "@/components/LandingPage";
+import LearningModeView, { type TutorMessage } from "@/components/LearningModeView";
 import Navbar from "@/components/Navbar";
 import QuestRunView from "@/components/QuestRunView";
 import ShipGateView from "@/components/ShipGateView";
 import WalletConnectModal from "@/components/WalletConnectModal";
 import WorkbenchView from "@/components/WorkbenchView";
 import {
+  askLearningTutor,
   completeQuest,
+  generateLearningModule,
   generateQuest,
   getHealth,
   getUserQuestHistory,
@@ -19,6 +22,7 @@ import {
   type Difficulty,
   type GenerateQuestResponse,
   type HealthResponse,
+  type LearningModuleDto,
   type QuestRunRecord,
   type RewardClaimRecord,
   type UserQuestCounts,
@@ -38,6 +42,7 @@ import type {
 type TabId =
   | "landing"
   | "dashboard"
+  | "learn"
   | "workbench"
   | "quest-run"
   | "ship-gate";
@@ -53,11 +58,13 @@ const STORAGE_KEYS = {
   proofLogs: "vibequest.proofLogs",
   practiceRecords: "vibequest.practiceRecords.v1",
   activeQuestSession: "vibequest.activeQuestSession.v1",
+  learningSession: "vibequest.learningSession.v1",
 } as const;
 
 const TAB_IDS = new Set<TabId>([
   "landing",
   "dashboard",
+  "learn",
   "workbench",
   "quest-run",
   "ship-gate",
@@ -115,6 +122,18 @@ export function VibeQuestWorkbench() {
   });
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
+  const [learningModule, setLearningModule] = useState<LearningModuleDto | null>(null);
+  const [learningGenerating, setLearningGenerating] = useState(false);
+  const [learningError, setLearningError] = useState<string | null>(null);
+  const [selectedInterests, setSelectedInterests] = useState<string[]>(["CKB Foundations", "Fiber Payments"]);
+  const [learnerGoal, setLearnerGoal] = useState("Teach me CKB/Fiber well enough to understand generated code, explain the trust boundary, and complete practical quests.");
+  const [learnerBackground, setLearnerBackground] = useState("Vibecoder");
+  const [learningPace, setLearningPace] = useState("Focused");
+  const [activeLessonIndex, setActiveLessonIndex] = useState(0);
+  const [checkpointAnswers, setCheckpointAnswers] = useState<Record<string, number>>({});
+  const [tutorQuestion, setTutorQuestion] = useState("");
+  const [tutorMessages, setTutorMessages] = useState<TutorMessage[]>([]);
+  const [tutorLoading, setTutorLoading] = useState(false);
 
   const generationBackendReady = Boolean(
     health?.integrations.openai &&
@@ -141,6 +160,18 @@ export function VibeQuestWorkbench() {
     const restoredProofLogs = parseProofLogs(window.localStorage.getItem(STORAGE_KEYS.proofLogs));
     const restoredPracticeRecords = parsePracticeRecords(window.localStorage.getItem(STORAGE_KEYS.practiceRecords));
     const restoredActiveSession = parseActiveQuestSession(window.localStorage.getItem(STORAGE_KEYS.activeQuestSession));
+    const restoredLearningSession = parseLearningSession(window.localStorage.getItem(STORAGE_KEYS.learningSession));
+
+    if (restoredLearningSession) {
+      setLearningModule(restoredLearningSession.module);
+      setSelectedInterests(restoredLearningSession.selectedInterests);
+      setLearnerGoal(restoredLearningSession.learnerGoal);
+      setLearnerBackground(restoredLearningSession.background);
+      setLearningPace(restoredLearningSession.pace);
+      setActiveLessonIndex(restoredLearningSession.activeLessonIndex);
+      setCheckpointAnswers(restoredLearningSession.checkpointAnswers);
+      setTutorMessages(restoredLearningSession.tutorMessages);
+    }
 
     if (restoredTab) {
       setActiveTab(restoredTab);
@@ -250,6 +281,32 @@ export function VibeQuestWorkbench() {
 
     window.localStorage.setItem(STORAGE_KEYS.activeQuestSession, JSON.stringify(session));
   }, [bossFightSolved, buildRequest, difficulty, gates, generationError, questData, selectedFile?.path, sessionReady, shipped, skillTrack]);
+
+  useEffect(() => {
+    if (!sessionReady || typeof window === "undefined") {
+      return;
+    }
+
+    if (!learningModule) {
+      window.localStorage.removeItem(STORAGE_KEYS.learningSession);
+      return;
+    }
+
+    window.localStorage.setItem(
+      STORAGE_KEYS.learningSession,
+      JSON.stringify({
+        module: learningModule,
+        selectedInterests,
+        learnerGoal,
+        background: learnerBackground,
+        pace: learningPace,
+        activeLessonIndex,
+        checkpointAnswers,
+        tutorMessages,
+        updatedAt: new Date().toISOString(),
+      }),
+    );
+  }, [activeLessonIndex, checkpointAnswers, learnerBackground, learnerGoal, learningModule, learningPace, selectedInterests, sessionReady, tutorMessages]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -699,6 +756,68 @@ export function VibeQuestWorkbench() {
     [applyQuestRun, bossFightSolved, gates, loadQuestHistory, markCurrentPracticeRecord, questData?.runId, walletProof],
   );
 
+  const handleGenerateLearningModule = useCallback(async () => {
+    setLearningGenerating(true);
+    setLearningError(null);
+    setTutorMessages([]);
+    setCheckpointAnswers({});
+    setActiveLessonIndex(0);
+
+    try {
+      const response = await generateLearningModule({
+        interests: selectedInterests,
+        learner_goal: learnerGoal,
+        background: learnerBackground,
+        pace: learningPace,
+      });
+      setLearningModule(response.module);
+    } catch (error) {
+      setLearningError(error instanceof Error ? error.message : "Learning module generation failed.");
+    } finally {
+      setLearningGenerating(false);
+    }
+  }, [learnerBackground, learnerGoal, learningPace, selectedInterests]);
+
+  const handleAskLearningTutor = useCallback(async () => {
+    const lesson = learningModule?.lessons[activeLessonIndex];
+    if (!learningModule || !lesson || !tutorQuestion.trim()) {
+      return null;
+    }
+
+    setTutorLoading(true);
+    setLearningError(null);
+    try {
+      return await askLearningTutor({
+        module_title: learningModule.title,
+        lesson_title: lesson.title,
+        lesson_context: `${lesson.why_it_matters}\n${lesson.explanation}\nCheckpoint: ${lesson.checkpoint.question}`,
+        question: tutorQuestion,
+      });
+    } catch (error) {
+      setLearningError(error instanceof Error ? error.message : "Learning tutor failed to answer.");
+      return null;
+    } finally {
+      setTutorLoading(false);
+    }
+  }, [activeLessonIndex, learningModule, tutorQuestion]);
+
+  const handleStartLessonQuest = useCallback((prompt: string) => {
+    const lesson = learningModule?.lessons[activeLessonIndex];
+    setBuildRequest(
+      prompt.trim() ||
+        learningModule?.capstone_quest_prompt ||
+        "Build a CKB/Fiber verifier based on the completed lesson with a denial test.",
+    );
+    setSkillTrack(
+      selectedInterests.some((interest) => interest.toLowerCase().includes("fiber"))
+        ? "Fiber Builder"
+        : "CKB Fundamentals",
+    );
+    setDifficulty(checkpointAnswers[lesson?.id ?? ""] === lesson?.checkpoint.correct_index ? "BUILDER" : "NOVICE");
+    setGenerationError(null);
+    setActiveTab("quest-run");
+  }, [activeLessonIndex, checkpointAnswers, learningModule, selectedInterests]);
+
   const activeRewardClaim = useMemo(
     () => rewardClaims.find((claim) => claim.run_id === questData?.runId) ?? null,
     [questData?.runId, rewardClaims],
@@ -736,6 +855,34 @@ export function VibeQuestWorkbench() {
             onEnterWorkbench={() => setActiveTab("workbench")}
             walletBound={walletBound}
             onConnectWallet={() => setWalletModalOpen(true)}
+          />
+        )}
+
+        {activeTab === "learn" && (
+          <LearningModeView
+            module={learningModule}
+            generating={learningGenerating}
+            tutorLoading={tutorLoading}
+            error={learningError}
+            selectedInterests={selectedInterests}
+            setSelectedInterests={setSelectedInterests}
+            learnerGoal={learnerGoal}
+            setLearnerGoal={setLearnerGoal}
+            background={learnerBackground}
+            setBackground={setLearnerBackground}
+            pace={learningPace}
+            setPace={setLearningPace}
+            activeLessonIndex={activeLessonIndex}
+            setActiveLessonIndex={setActiveLessonIndex}
+            checkpointAnswers={checkpointAnswers}
+            setCheckpointAnswers={setCheckpointAnswers}
+            tutorMessages={tutorMessages}
+            setTutorMessages={setTutorMessages}
+            tutorQuestion={tutorQuestion}
+            setTutorQuestion={setTutorQuestion}
+            onGenerateModule={handleGenerateLearningModule}
+            onAskTutor={handleAskLearningTutor}
+            onStartLessonQuest={handleStartLessonQuest}
           />
         )}
 
@@ -941,6 +1088,90 @@ function parsePracticeRecords(value: string | null): PracticeRecord[] {
   }
 
   return [];
+}
+
+type LearningSession = {
+  module: LearningModuleDto;
+  selectedInterests: string[];
+  learnerGoal: string;
+  background: string;
+  pace: string;
+  activeLessonIndex: number;
+  checkpointAnswers: Record<string, number>;
+  tutorMessages: TutorMessage[];
+  updatedAt: string;
+};
+
+function parseLearningSession(value: string | null): LearningSession | null {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(value) as LearningSession;
+    if (
+      isLearningModule(parsed.module) &&
+      Array.isArray(parsed.selectedInterests) &&
+      parsed.selectedInterests.every((interest) => typeof interest === "string") &&
+      typeof parsed.learnerGoal === "string" &&
+      typeof parsed.background === "string" &&
+      typeof parsed.pace === "string" &&
+      typeof parsed.activeLessonIndex === "number" &&
+      isNumberRecord(parsed.checkpointAnswers) &&
+      Array.isArray(parsed.tutorMessages) &&
+      parsed.tutorMessages.every(isTutorMessage) &&
+      typeof parsed.updatedAt === "string"
+    ) {
+      return parsed;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function isLearningModule(value: unknown): value is LearningModuleDto {
+  const learningModuleValue = value as LearningModuleDto;
+
+  return Boolean(
+    learningModuleValue &&
+      typeof learningModuleValue.title === "string" &&
+      typeof learningModuleValue.learner_profile === "string" &&
+      typeof learningModuleValue.outcome === "string" &&
+      Array.isArray(learningModuleValue.lessons) &&
+      learningModuleValue.lessons.length > 0 &&
+      learningModuleValue.lessons.every((lesson) =>
+        lesson &&
+        typeof lesson.id === "string" &&
+        typeof lesson.title === "string" &&
+        typeof lesson.explanation === "string" &&
+        Array.isArray(lesson.concepts) &&
+        lesson.checkpoint &&
+        typeof lesson.checkpoint.question === "string" &&
+        Array.isArray(lesson.checkpoint.options) &&
+        typeof lesson.checkpoint.correct_index === "number",
+      ),
+  );
+}
+
+function isNumberRecord(value: unknown): value is Record<string, number> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+
+  return Object.values(value).every((item) => typeof item === "number");
+}
+
+function isTutorMessage(value: unknown): value is TutorMessage {
+  const message = value as TutorMessage;
+
+  return Boolean(
+    message &&
+      typeof message.id === "string" &&
+      (message.role === "learner" || message.role === "mentor") &&
+      typeof message.text === "string",
+  );
 }
 
 function parseActiveQuestSession(value: string | null): ActiveQuestSession | null {

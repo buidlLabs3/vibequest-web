@@ -19,6 +19,7 @@ export default function Navbar({
 }: NavbarProps) {
   const tabs = [
     { id: "dashboard", label: "Dashboard" },
+    { id: "learn", label: "Learn" },
     { id: "workbench", label: "Workbench" },
     { id: "quest-run", label: "Quest Run" },
     { id: "ship-gate", label: "Ship Gate" },
