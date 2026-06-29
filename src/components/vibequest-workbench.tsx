@@ -914,11 +914,15 @@ export function VibeQuestWorkbench() {
             proofLogs={proofLogs}
             health={health}
             questData={enhancedQuestData}
+            learningModule={learningModule}
+            activeLessonIndex={activeLessonIndex}
+            checkpointAnswers={checkpointAnswers}
             gates={gates}
             bossFightSolved={bossFightSolved}
             shipped={shipped}
             onConnectWallet={() => setWalletModalOpen(true)}
             onOpenQuestRun={() => setActiveTab("quest-run")}
+            onOpenLearn={() => setActiveTab("learn")}
             onOpenWorkbench={() => setActiveTab("workbench")}
             onOpenShipGate={() => setActiveTab("ship-gate")}
             onOpenQuestRunRecord={openQuestRunRecord}

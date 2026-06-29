@@ -2,9 +2,11 @@ import { type ReactNode } from "react";
 import {
   Activity,
   ArrowRight,
+  BookOpen,
   CheckCircle,
   Clock,
   Code2,
+  GraduationCap,
   LayoutDashboard,
   ReceiptText,
   ShieldCheck,
@@ -12,7 +14,7 @@ import {
   XCircle,
 } from "lucide-react";
 
-import type { HealthResponse, QuestRunRecord, RewardClaimRecord, UserQuestCounts } from "@/lib/api";
+import type { HealthResponse, LearningModuleDto, QuestRunRecord, RewardClaimRecord, UserQuestCounts } from "@/lib/api";
 import type { PracticeRecord, ProofLog, QuestData, VerificationGate } from "@/lib/workbench-types";
 
 interface DashboardViewProps {
@@ -21,11 +23,15 @@ interface DashboardViewProps {
   proofLogs: ProofLog[];
   health: HealthResponse | null;
   questData: QuestData | null;
+  learningModule: LearningModuleDto | null;
+  activeLessonIndex: number;
+  checkpointAnswers: Record<string, number>;
   gates: VerificationGate[];
   bossFightSolved: boolean;
   shipped: boolean;
   onConnectWallet: () => void;
   onOpenQuestRun: () => void;
+  onOpenLearn: () => void;
   onOpenWorkbench: () => void;
   onOpenShipGate: () => void;
   onOpenQuestRunRecord: (run: QuestRunRecord) => void;
@@ -46,11 +52,15 @@ export default function DashboardView({
   proofLogs,
   health,
   questData,
+  learningModule,
+  activeLessonIndex,
+  checkpointAnswers,
   gates,
   bossFightSolved,
   shipped,
   onConnectWallet,
   onOpenQuestRun,
+  onOpenLearn,
   onOpenWorkbench,
   onOpenShipGate,
   onOpenQuestRunRecord,
@@ -69,6 +79,11 @@ export default function DashboardView({
   );
   const rewardLedgerReady = Boolean(health?.integrations.mongodb);
   const passedGates = gates.filter((gate) => gate.isCompleted).length;
+  const activeLesson = learningModule?.lessons[activeLessonIndex] ?? null;
+  const completedLessons = learningModule
+    ? learningModule.lessons.filter((lesson) => checkpointAnswers[lesson.id] === lesson.checkpoint.correct_index).length
+    : 0;
+  const lessonCount = learningModule?.lessons.length ?? 0;
   const completedPractice = practiceRecords.filter((record) => record.status === "completed" || record.status === "shipped").length;
   const localInProgress = practiceRecords.filter((record) => record.status !== "completed" && record.status !== "shipped").length;
   const questsStarted = Math.max(questStats.created, practiceRecords.length);
@@ -84,6 +99,9 @@ export default function DashboardView({
     gateCount: gates.length,
     bossFightSolved,
     shipped,
+    learningModule,
+    completedLessons,
+    lessonCount,
   });
 
   return (
@@ -99,10 +117,10 @@ export default function DashboardView({
           </p>
         </div>
         <button
-          onClick={walletBound ? onOpenQuestRun : onConnectWallet}
+          onClick={onOpenLearn}
           className="flex items-center justify-center gap-2 rounded-xl bg-electric-blue px-5 py-3 text-sm font-extrabold uppercase tracking-wider text-black transition-all hover:brightness-110"
         >
-          {walletBound ? "Start Quest" : "Connect Wallet"}
+          {learningModule ? "Continue Learning" : "Start Learning"}
           <ArrowRight className="h-4 w-4" />
         </button>
       </div>
@@ -112,29 +130,46 @@ export default function DashboardView({
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
               <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-electric-blue">Current learning objective</span>
-              <h2 className="mt-2 text-2xl font-black tracking-tight text-white">{questData?.questName ?? "Choose a learner path and generate a quest"}</h2>
+              <h2 className="mt-2 text-2xl font-black tracking-tight text-white">{learningModule?.title ?? questData?.questName ?? "Choose interests and generate a learning path"}</h2>
               <p className="mt-2 max-w-2xl text-sm leading-relaxed text-on-surface-variant">
-                {questData ? "Inspect the generated code, run verification checks, answer the code-specific boss challenge, then record the badge." : "VibeQuest should adapt to builders, auditors, researchers, product leads, and community members instead of assuming everyone wants the same coding drill."}
+                {activeLesson
+                  ? `Next lesson: ${activeLesson.title}. ${activeLesson.why_it_matters}`
+                  : questData
+                    ? "Inspect the generated code, run verification checks, answer the code-specific boss challenge, then record the badge."
+                    : "Start with interests and background, learn the concepts interactively, then generate quests from lessons you completed."}
               </p>
             </div>
             <button
-              onClick={questData ? onOpenWorkbench : onOpenQuestRun}
+              onClick={learningModule ? onOpenLearn : questData ? onOpenWorkbench : onOpenLearn}
               className="rounded-xl bg-cyber-green px-5 py-3 text-sm font-black uppercase tracking-wider text-black transition-all hover:brightness-110"
             >
-              {questData ? "Continue Quest" : "Start Quest"}
+              {learningModule ? "Continue Lesson" : questData ? "Continue Quest" : "Build Path"}
             </button>
           </div>
           <div className="mt-6 grid gap-3 md:grid-cols-4">
-            {gates.map((gate) => (
-              <div key={gate.id} className={"rounded-lg border p-3 " + (gate.isCompleted ? "border-cyber-green/20 bg-cyber-green/5" : "border-glass-border bg-[#0B0C0E]/60")}>
-                <span className="font-mono text-[10px] uppercase text-on-surface-variant">{gate.name}</span>
-                <p className="mt-2 text-xs font-bold text-white">{gate.isCompleted ? "Complete" : "Pending"}</p>
+            {learningModule
+              ? learningModule.lessons.slice(0, 4).map((lesson, index) => {
+                  const complete = checkpointAnswers[lesson.id] === lesson.checkpoint.correct_index;
+                  const active = index === activeLessonIndex;
+                  return (
+                    <div key={lesson.id} className={"rounded-lg border p-3 " + (complete ? "border-cyber-green/20 bg-cyber-green/5" : active ? "border-electric-blue/30 bg-electric-blue/10" : "border-glass-border bg-[#0B0C0E]/60")}>
+                      <span className="font-mono text-[10px] uppercase text-on-surface-variant">Lesson {index + 1}</span>
+                      <p className="mt-2 line-clamp-2 text-xs font-bold text-white">{complete ? "Complete" : active ? "Active" : lesson.title}</p>
+                    </div>
+                  );
+                })
+              : gates.map((gate) => (
+                  <div key={gate.id} className={"rounded-lg border p-3 " + (gate.isCompleted ? "border-cyber-green/20 bg-cyber-green/5" : "border-glass-border bg-[#0B0C0E]/60")}>
+                    <span className="font-mono text-[10px] uppercase text-on-surface-variant">{gate.name}</span>
+                    <p className="mt-2 text-xs font-bold text-white">{gate.isCompleted ? "Complete" : "Pending"}</p>
+                  </div>
+                ))}
+            {!learningModule ? (
+              <div className={"rounded-lg border p-3 " + (bossFightSolved ? "border-cyber-green/20 bg-cyber-green/5" : "border-glass-border bg-[#0B0C0E]/60")}>
+                <span className="font-mono text-[10px] uppercase text-on-surface-variant">Boss Challenge</span>
+                <p className="mt-2 text-xs font-bold text-white">{bossFightSolved ? "Solved" : "Pending"}</p>
               </div>
-            ))}
-            <div className={"rounded-lg border p-3 " + (bossFightSolved ? "border-cyber-green/20 bg-cyber-green/5" : "border-glass-border bg-[#0B0C0E]/60")}>
-              <span className="font-mono text-[10px] uppercase text-on-surface-variant">Boss Challenge</span>
-              <p className="mt-2 text-xs font-bold text-white">{bossFightSolved ? "Solved" : "Pending"}</p>
-            </div>
+            ) : null}
           </div>
         </div>
 
@@ -160,12 +195,21 @@ export default function DashboardView({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <MetricCard
+          icon={<GraduationCap className="h-5 w-5 text-electric-blue" />}
+          label="Learning Path"
+          value={learningModule ? `${completedLessons}/${lessonCount}` : "New"}
+          detail={learningModule ? learningModule.title : "Generate lessons from your interests"}
+          ready={Boolean(learningModule)}
+          actionLabel={learningModule ? "Continue" : "Start"}
+          onAction={onOpenLearn}
+        />
         <MetricCard
           icon={<Code2 className="h-5 w-5 text-electric-blue" />}
           label="Quests Started"
           value={String(questsStarted)}
-          detail="Learning quests saved to your account"
+          detail="Practice quests generated from lessons or prompts"
           ready={questsStarted > 0}
           actionLabel="Generate"
           onAction={onOpenQuestRun}
@@ -201,6 +245,41 @@ export default function DashboardView({
 
       <div className="grid grid-cols-1 gap-8 xl:grid-cols-[1fr_360px]">
         <div className="flex flex-col gap-6">
+          {learningModule ? (
+            <div className="rounded-xl border border-electric-blue/20 bg-[#121820] p-5">
+              <div className="mb-4 flex items-center justify-between border-b border-glass-border pb-3">
+                <div className="flex items-center gap-2">
+                  <BookOpen className="h-5 w-5 text-electric-blue" />
+                  <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Active Learning Path</h2>
+                </div>
+                <span className="font-mono text-xs text-cyber-green">{completedLessons}/{lessonCount}</span>
+              </div>
+              <div className="grid gap-2 md:grid-cols-2">
+                {learningModule.lessons.map((lesson, index) => {
+                  const complete = checkpointAnswers[lesson.id] === lesson.checkpoint.correct_index;
+                  const active = index === activeLessonIndex;
+                  return (
+                    <button key={lesson.id} onClick={onOpenLearn} className={"rounded-lg border p-3 text-left transition-colors " + (complete ? "border-cyber-green/25 bg-cyber-green/5" : active ? "border-electric-blue/40 bg-electric-blue/10" : "border-glass-border/70 bg-[#0B0C0E]/70 hover:border-electric-blue/30")}>
+                      <div className="flex items-center justify-between gap-3">
+                        <h3 className="line-clamp-1 text-xs font-bold text-white">{index + 1}. {lesson.title}</h3>
+                        <span className="font-mono text-[10px] uppercase text-on-surface-variant">{complete ? "done" : active ? "next" : "up next"}</span>
+                      </div>
+                      <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-on-surface-variant">{lesson.why_it_matters}</p>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button onClick={onOpenLearn} className="rounded border border-electric-blue/30 px-3 py-1.5 font-mono text-[10px] font-bold uppercase text-electric-blue hover:bg-electric-blue/10">
+                  Continue Lesson
+                </button>
+                <button onClick={onOpenQuestRun} className="rounded border border-cyber-green/30 px-3 py-1.5 font-mono text-[10px] font-bold uppercase text-cyber-green hover:bg-cyber-green/10">
+                  Generate Practice Quest
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           <div className="rounded-xl border border-glass-border bg-[#16181D] p-5">
             <div className="mb-4 flex items-center justify-between border-b border-glass-border pb-3">
               <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Quest History</h2>
@@ -428,6 +507,9 @@ function buildActivities({
   gateCount,
   bossFightSolved,
   shipped,
+  learningModule,
+  completedLessons,
+  lessonCount,
 }: {
   walletBound: boolean;
   proofLogs: ProofLog[];
@@ -438,6 +520,9 @@ function buildActivities({
   gateCount: number;
   bossFightSolved: boolean;
   shipped: boolean;
+  learningModule: LearningModuleDto | null;
+  completedLessons: number;
+  lessonCount: number;
 }) {
   const proofEvents = proofLogs.slice(0, 3).map((log) => ({
     id: "proof-" + log.id,
@@ -468,6 +553,13 @@ function buildActivities({
       description: rewardLedgerReady ? "MongoDB can store quest runs and reward claims." : "MongoDB is not reachable yet, so reward claims cannot be locked.",
       time: "live",
       ready: rewardLedgerReady,
+    },
+    {
+      id: "learning",
+      title: learningModule ? "Learning path active" : "No learning path",
+      description: learningModule ? `${learningModule.title}: ${completedLessons} of ${lessonCount} lessons complete.` : "Generate a module from your interests before jumping into quests.",
+      time: learningModule ? "active" : "pending",
+      ready: Boolean(learningModule),
     },
     {
       id: "quest",
