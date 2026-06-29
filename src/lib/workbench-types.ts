@@ -1,3 +1,5 @@
+import type { LearningQuestLink } from "@/lib/api";
+
 export interface WorkbenchFile {
   name: string;
   path: string;
@@ -38,6 +40,7 @@ export interface LearningResource {
 export interface QuestData {
   runId: string;
   source?: string;
+  learningContext?: LearningQuestLink | null;
   questName: string;
   description: string;
   files: WorkbenchFile[];

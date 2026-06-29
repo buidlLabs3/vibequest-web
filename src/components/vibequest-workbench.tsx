@@ -26,6 +26,7 @@ import {
   type GenerateQuestResponse,
   type HealthResponse,
   type LearningModuleDto,
+  type LearningQuestLink,
   type LearningSessionRecord,
   type LearningTutorMessageDto,
   type QuestRunRecord,
@@ -141,6 +142,7 @@ export function VibeQuestWorkbench() {
   const [tutorLoading, setTutorLoading] = useState(false);
   const [learningModuleId, setLearningModuleId] = useState<string | null>(null);
   const [learningSyncState, setLearningSyncState] = useState<"idle" | "loading" | "saving" | "saved" | "local-only">("idle");
+  const [pendingLearningQuestContext, setPendingLearningQuestContext] = useState<LearningQuestLink | null>(null);
   const lastSavedLearningSnapshotRef = useRef<string | null>(null);
 
   const generationBackendReady = Boolean(
@@ -479,6 +481,7 @@ export function VibeQuestWorkbench() {
     setBuildRequest(run.build_prompt);
     setSkillTrack(run.skill_track);
     setDifficulty(run.difficulty.toUpperCase());
+    setPendingLearningQuestContext(run.learning_context ?? null);
 
     const verificationPassed = Boolean(
       run.progress.gates.find((gate) => gate.id === "verification")?.is_completed,
@@ -532,6 +535,7 @@ export function VibeQuestWorkbench() {
     setBuildRequest(run.build_prompt);
     setSkillTrack(run.skill_track);
     setDifficulty(run.difficulty.toUpperCase());
+    setPendingLearningQuestContext(run.learning_context ?? null);
     setGenerationError(null);
     setActiveTab("quest-run");
   }, []);
@@ -763,6 +767,7 @@ export function VibeQuestWorkbench() {
           skill_track: track,
           difficulty: normalizeDifficulty(rawDifficulty),
           wallet: walletProof,
+          learning_context: pendingLearningQuestContext,
         });
         if (response.source !== "open-ai") {
           throw new Error("AI quest generation did not complete. Please regenerate the quest.");
@@ -808,7 +813,7 @@ export function VibeQuestWorkbench() {
         setGenerating(false);
       }
     },
-    [loadQuestHistory, refreshHealth, upsertPracticeRecord, walletProof],
+    [loadQuestHistory, pendingLearningQuestContext, refreshHealth, upsertPracticeRecord, walletProof],
   );
 
   const handleShipCargo = useCallback(
@@ -856,6 +861,7 @@ export function VibeQuestWorkbench() {
     setTutorMessages([]);
     setCheckpointAnswers({});
     setActiveLessonIndex(0);
+    setPendingLearningQuestContext(null);
 
     try {
       const response = await generateLearningModule({
@@ -913,20 +919,68 @@ export function VibeQuestWorkbench() {
 
   const handleStartLessonQuest = useCallback((prompt: string) => {
     const lesson = learningModule?.lessons[activeLessonIndex];
-    setBuildRequest(
-      prompt.trim() ||
-        learningModule?.capstone_quest_prompt ||
-        "Build a CKB/Fiber verifier based on the completed lesson with a denial test.",
-    );
+    if (!learningModule || !lesson) {
+      return;
+    }
+
+    const answeredCorrectly = checkpointAnswers[lesson.id] === lesson.checkpoint.correct_index;
+    if (!answeredCorrectly) {
+      setLearningError("Pass the active lesson checkpoint before generating its practice quest.");
+      setActiveTab("learn");
+      return;
+    }
+
+    const wrongGaps = lesson.checkpoint.options
+      .filter((_, index) => index !== lesson.checkpoint.correct_index)
+      .map((option) => option.feedback)
+      .slice(0, 2)
+      .join(" ");
+    const questPrompt = [
+      prompt.trim() || learningModule.capstone_quest_prompt,
+      `Learning source: ${learningModule.title} / ${lesson.title}.`,
+      `Learner goal: ${learnerGoal}.`,
+      `Concepts to practice: ${lesson.concepts.join(", ")}.`,
+      `Checkpoint they passed: ${lesson.checkpoint.question}`,
+      `Make the boss challenge test this exact misunderstanding: ${wrongGaps || lesson.checkpoint.explanation}`,
+    ].filter(Boolean).join(" ");
+
+    setBuildRequest(questPrompt);
+    setPendingLearningQuestContext({
+      module_id: learningModuleId ?? learningModule.title,
+      lesson_id: lesson.id,
+      module_title: learningModule.title,
+      lesson_title: lesson.title,
+      checkpoint_question: lesson.checkpoint.question,
+    });
     setSkillTrack(
       selectedInterests.some((interest) => interest.toLowerCase().includes("fiber"))
         ? "Fiber Builder"
         : "CKB Fundamentals",
     );
-    setDifficulty(checkpointAnswers[lesson?.id ?? ""] === lesson?.checkpoint.correct_index ? "BUILDER" : "NOVICE");
+    setDifficulty("BUILDER");
     setGenerationError(null);
+    setLearningError(null);
     setActiveTab("quest-run");
-  }, [activeLessonIndex, checkpointAnswers, learningModule, selectedInterests]);
+  }, [activeLessonIndex, checkpointAnswers, learnerGoal, learningModule, learningModuleId, selectedInterests]);
+
+  const handleGenerateActiveLessonQuest = useCallback(() => {
+    const lesson = learningModule?.lessons[activeLessonIndex];
+    if (!lesson || !learningModule) {
+      setActiveTab("learn");
+      return;
+    }
+
+    handleStartLessonQuest(lesson.quest_bridge || learningModule.capstone_quest_prompt);
+  }, [activeLessonIndex, handleStartLessonQuest, learningModule]);
+
+  const openLearningSource = useCallback((context: LearningQuestLink) => {
+    const lessonIndex = learningModule?.lessons.findIndex((lesson) => lesson.id === context.lesson_id) ?? -1;
+    if (lessonIndex >= 0) {
+      setActiveLessonIndex(lessonIndex);
+    }
+    setLearningError(null);
+    setActiveTab("learn");
+  }, [learningModule]);
 
   const activeRewardClaim = useMemo(
     () => rewardClaims.find((claim) => claim.run_id === questData?.runId) ?? null,
@@ -994,6 +1048,7 @@ export function VibeQuestWorkbench() {
             onGenerateModule={handleGenerateLearningModule}
             onAskTutor={handleAskLearningTutor}
             onStartLessonQuest={handleStartLessonQuest}
+            canStartLessonQuest={Boolean(learningModule?.lessons[activeLessonIndex] && checkpointAnswers[learningModule.lessons[activeLessonIndex].id] === learningModule.lessons[activeLessonIndex].checkpoint.correct_index)}
           />
         )}
 
@@ -1003,6 +1058,7 @@ export function VibeQuestWorkbench() {
             onConnectWallet={() => setWalletModalOpen(true)}
             questData={enhancedQuestData}
             onOpenQuestRun={() => setActiveTab("quest-run")}
+            onOpenLearningSource={openLearningSource}
             selectedFile={selectedFile}
             setSelectedFile={setSelectedFile}
             gates={gates}
@@ -1032,8 +1088,9 @@ export function VibeQuestWorkbench() {
             bossFightSolved={bossFightSolved}
             shipped={shipped}
             onConnectWallet={() => setWalletModalOpen(true)}
-            onOpenQuestRun={() => setActiveTab("quest-run")}
+            onOpenQuestRun={() => { setPendingLearningQuestContext(null); setActiveTab("quest-run"); }}
             onOpenLearn={() => setActiveTab("learn")}
+            onGenerateActiveLessonQuest={handleGenerateActiveLessonQuest}
             onOpenWorkbench={() => setActiveTab("workbench")}
             onOpenShipGate={() => setActiveTab("ship-gate")}
             onOpenQuestRunRecord={openQuestRunRecord}
@@ -1061,6 +1118,8 @@ export function VibeQuestWorkbench() {
             setDifficulty={setDifficulty}
             setActiveTab={setActiveTabStrict}
             generationError={generationError}
+            learningQuestOrigin={pendingLearningQuestContext ? `${pendingLearningQuestContext.module_title} / ${pendingLearningQuestContext.lesson_title}` : null}
+            onClearLearningQuest={() => setPendingLearningQuestContext(null)}
           />
         )}
 
@@ -1396,6 +1455,7 @@ function mapQuestResponse(response: GenerateQuestResponse): QuestData {
   return {
     runId: response.run_id,
     source: response.source,
+    learningContext: response.learning_context ?? null,
     questName: response.quest.title,
     description: `${response.quest.premise}\n\n${response.quest.build_objective}\n\nReward logic: ${response.quest.reward_logic}`,
     files,
@@ -1413,6 +1473,7 @@ function mapQuestRunRecord(run: QuestRunRecord): QuestData {
   return mapQuestResponse({
     run_id: run.run_id,
     source: run.source,
+    learning_context: run.learning_context ?? null,
     wallet: {
       address: run.user_address,
       identity: "",
@@ -1485,6 +1546,7 @@ function mapQuestBlueprintForAnalysis(response: GenerateQuestResponse): QuestDat
   return {
     runId: response.run_id,
     source: response.source,
+    learningContext: response.learning_context ?? null,
     questName: response.quest.title,
     description: response.quest.build_objective,
     files,

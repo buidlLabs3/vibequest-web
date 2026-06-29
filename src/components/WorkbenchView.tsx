@@ -131,6 +131,7 @@ interface WorkbenchViewProps {
   onConnectWallet: () => void;
   questData: QuestData | null;
   onOpenQuestRun: () => void;
+  onOpenLearningSource?: (context: NonNullable<QuestData["learningContext"]>) => void;
   selectedFile: WorkbenchFile | null;
   setSelectedFile: (file: WorkbenchFile | null) => void;
   gates: VerificationGate[];
@@ -182,6 +183,7 @@ export default function WorkbenchView({
   onConnectWallet,
   questData,
   onOpenQuestRun,
+  onOpenLearningSource,
   selectedFile,
   setSelectedFile,
   gates,
@@ -395,6 +397,19 @@ export default function WorkbenchView({
               <div className="rounded-lg border border-cyber-green/20 bg-cyber-green/5 p-4">
                 <span className="font-mono text-[10px] uppercase tracking-wider text-cyber-green">Active Quest</span>
                 <h3 className="mt-1 text-base font-bold text-white">{questData.questName}</h3>
+                {questData.learningContext ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (questData.learningContext) {
+                        onOpenLearningSource?.(questData.learningContext);
+                      }
+                    }}
+                    className="mt-2 rounded border border-electric-blue/20 bg-electric-blue/10 px-2 py-1 text-left font-mono text-[10px] uppercase text-electric-blue transition hover:border-electric-blue/50 hover:bg-electric-blue/15"
+                  >
+                    From lesson: {questData.learningContext.lesson_title} · Back to lesson
+                  </button>
+                ) : null}
                 <p className="mt-2 font-mono text-[11px] text-on-surface-variant">
                   {workspaceFiles.length} files / {questData.gates.length} gates
                 </p>

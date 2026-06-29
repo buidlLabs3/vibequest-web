@@ -50,6 +50,7 @@ interface LearningModeViewProps {
   onGenerateModule: () => Promise<void>;
   onAskTutor: () => Promise<LearningTutorResponse | null>;
   onStartLessonQuest: (prompt: string) => void;
+  canStartLessonQuest: boolean;
 }
 
 const INTERESTS = [
@@ -89,6 +90,7 @@ export default function LearningModeView({
   onGenerateModule,
   onAskTutor,
   onStartLessonQuest,
+  canStartLessonQuest,
 }: LearningModeViewProps) {
   const activeLesson = module?.lessons[activeLessonIndex] ?? null;
   const completedLessons = useMemo(() => {
@@ -262,9 +264,10 @@ export default function LearningModeView({
                   </div>
                   <button
                     onClick={() => onStartLessonQuest(activeLesson.quest_bridge || module.capstone_quest_prompt)}
-                    className="flex shrink-0 items-center justify-center gap-2 rounded-xl border border-cyber-green/30 bg-cyber-green/10 px-4 py-3 text-xs font-black uppercase tracking-wider text-cyber-green hover:bg-cyber-green/15"
+                    disabled={!canStartLessonQuest}
+                    className="flex shrink-0 items-center justify-center gap-2 rounded-xl border border-cyber-green/30 bg-cyber-green/10 px-4 py-3 text-xs font-black uppercase tracking-wider text-cyber-green hover:bg-cyber-green/15 disabled:border-warning-amber/25 disabled:bg-warning-amber/5 disabled:text-warning-amber disabled:hover:bg-warning-amber/5"
                   >
-                    Turn Into Quest
+                    {canStartLessonQuest ? "Turn Into Quest" : "Pass Checkpoint First"}
                     <ArrowRight className="h-4 w-4" />
                   </button>
                 </div>

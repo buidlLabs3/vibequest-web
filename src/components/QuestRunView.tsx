@@ -19,6 +19,8 @@ interface QuestRunViewProps {
   setDifficulty: (diff: string) => void;
   setActiveTab: (tab: string) => void;
   generationError?: string | null;
+  learningQuestOrigin?: string | null;
+  onClearLearningQuest?: () => void;
 }
 
 export default function QuestRunView({
@@ -32,6 +34,8 @@ export default function QuestRunView({
   setDifficulty,
   setActiveTab,
   generationError,
+  learningQuestOrigin,
+  onClearLearningQuest,
 }: QuestRunViewProps) {
 
   const learnerPaths = [
@@ -89,14 +93,17 @@ export default function QuestRunView({
   ];
 
   const applyLearnerPath = (path: (typeof learnerPaths)[number]) => {
+    onClearLearningQuest?.();
     setSkillTrack(path.track);
     setBuildRequest(path.prompt);
   };
 
   const handleStitchPrompt = (blockText: string) => {
     if (buildRequest.trim() === "") {
+      onClearLearningQuest?.();
       setBuildRequest(`Build ${blockText.toLowerCase()}`);
     } else {
+      onClearLearningQuest?.();
       setBuildRequest(`${buildRequest.trim()} and ${blockText.toLowerCase()}`);
     }
   };
@@ -201,7 +208,7 @@ export default function QuestRunView({
               </label>
               <textarea
                 value={buildRequest}
-                onChange={(e) => setBuildRequest(e.target.value)}
+                onChange={(e) => { onClearLearningQuest?.(); setBuildRequest(e.target.value); }}
                 rows={5}
                 className="w-full bg-[#0B0C0E] border border-glass-border rounded-lg p-3.5 font-mono text-xs text-cyber-green leading-relaxed focus:outline-none focus:border-cyber-green/50 resize-none shadow-inner"
                 placeholder="Describe what you want to understand or build: verifier, payout split, receipt proof, wallet flow, protocol risk, or community-facing explanation..."
@@ -244,6 +251,12 @@ export default function QuestRunView({
                 This is a learning request, not a coding quest. The next VibeQuest learning mode will turn this into a lesson path, tutor chat, checkpoint questions, then quests based on completed lessons.
               </div>
             )}
+
+            {learningQuestOrigin ? (
+              <div className="rounded-lg border border-electric-blue/25 bg-electric-blue/10 p-3 text-xs leading-relaxed text-electric-blue">
+                Practice quest source: {learningQuestOrigin}
+              </div>
+            ) : null}
 
             <button
               onClick={handleLaunchQuest}

@@ -25,6 +25,7 @@ export type PersistenceStatus = {
 export type GenerateQuestResponse = {
   run_id: string;
   source: "open-ai";
+  learning_context?: LearningQuestLink | null;
   wallet: WalletBinding;
   quest: QuestBlueprint;
   ship_requirements: ShipRequirements;
@@ -70,11 +71,20 @@ export type HealthResponse = {
   timestamp: string;
 };
 
+export type LearningQuestLink = {
+  module_id: string;
+  lesson_id: string;
+  module_title: string;
+  lesson_title: string;
+  checkpoint_question: string;
+};
+
 export type GenerateQuestRequest = {
   build_prompt: string;
   skill_track: string;
   difficulty: Difficulty;
   wallet: WalletProof;
+  learning_context?: LearningQuestLink | null;
 };
 
 export type StoredGateProgress = {
@@ -127,6 +137,7 @@ export type QuestRunRecord = {
   build_prompt: string;
   skill_track: string;
   difficulty: Difficulty;
+  learning_context?: LearningQuestLink | null;
   source: "open-ai";
   quest: QuestBlueprint;
   ship_requirements: ShipRequirements;

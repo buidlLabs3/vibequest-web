@@ -32,6 +32,7 @@ interface DashboardViewProps {
   onConnectWallet: () => void;
   onOpenQuestRun: () => void;
   onOpenLearn: () => void;
+  onGenerateActiveLessonQuest: () => void;
   onOpenWorkbench: () => void;
   onOpenShipGate: () => void;
   onOpenQuestRunRecord: (run: QuestRunRecord) => void;
@@ -61,6 +62,7 @@ export default function DashboardView({
   onConnectWallet,
   onOpenQuestRun,
   onOpenLearn,
+  onGenerateActiveLessonQuest,
   onOpenWorkbench,
   onOpenShipGate,
   onOpenQuestRunRecord,
@@ -273,7 +275,7 @@ export default function DashboardView({
                 <button onClick={onOpenLearn} className="rounded border border-electric-blue/30 px-3 py-1.5 font-mono text-[10px] font-bold uppercase text-electric-blue hover:bg-electric-blue/10">
                   Continue Lesson
                 </button>
-                <button onClick={onOpenQuestRun} className="rounded border border-cyber-green/30 px-3 py-1.5 font-mono text-[10px] font-bold uppercase text-cyber-green hover:bg-cyber-green/10">
+                <button onClick={onGenerateActiveLessonQuest} className="rounded border border-cyber-green/30 px-3 py-1.5 font-mono text-[10px] font-bold uppercase text-cyber-green hover:bg-cyber-green/10">
                   Generate Practice Quest
                 </button>
               </div>
@@ -300,6 +302,11 @@ export default function DashboardView({
                       </span>
                     </div>
                     <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-on-surface-variant">{run.build_prompt}</p>
+                    {run.learning_context ? (
+                      <p className="mt-2 rounded border border-electric-blue/20 bg-electric-blue/10 px-2 py-1 font-mono text-[10px] uppercase text-electric-blue">
+                        From lesson: {run.learning_context.lesson_title}
+                      </p>
+                    ) : null}
                     <p className="mt-2 font-mono text-[10px] uppercase text-on-surface-variant">
                       {run.skill_track} / {run.difficulty} / {new Date(run.updated_at).toLocaleDateString()}
                     </p>
