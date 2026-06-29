@@ -18,6 +18,7 @@ import type { QuestData, VerificationGate } from "@/lib/workbench-types";
 interface ShipGateViewProps {
   walletBound: boolean;
   ckbRpcOnline: boolean;
+  rewardLedgerOnline: boolean;
   questData: QuestData | null;
   gates: VerificationGate[];
   bossFightSolved: boolean;
@@ -31,6 +32,7 @@ interface ShipGateViewProps {
 export default function ShipGateView({
   walletBound,
   ckbRpcOnline,
+  rewardLedgerOnline,
   questData,
   gates,
   bossFightSolved,
@@ -44,7 +46,7 @@ export default function ShipGateView({
   const [invoiceTouched, setInvoiceTouched] = useState(false);
   const isAllGatesPassed = gates.every((gate) => gate.isCompleted);
   const invoiceReady = fiberInvoice.trim().length > 0;
-  const canShip = Boolean(walletBound && ckbRpcOnline && bossFightSolved && isAllGatesPassed && questData && !shipped && invoiceReady && !shipping);
+  const canShip = Boolean(walletBound && ckbRpcOnline && rewardLedgerOnline && bossFightSolved && isAllGatesPassed && questData && !shipped && invoiceReady && !shipping);
   const claimState = rewardClaim?.status ?? (shipped ? "verified" : "locked");
   const statusTone = useMemo(() => claimTone(claimState), [claimState]);
 
@@ -98,7 +100,8 @@ export default function ShipGateView({
             <h2 className="text-lg font-bold tracking-tight text-white">Pre-Flight Verification</h2>
             <div className="flex flex-col gap-3">
               <CheckRow passed={walletBound} title="JoyID Proof" description="The quest run belongs to the connected wallet proof." />
-              <CheckRow passed={ckbRpcOnline} title="Backend Ready" description="OpenAI, CKB RPC, Fiber RPC, and MongoDB are available through vibequest-core." />
+              <CheckRow passed={ckbRpcOnline} title="Generation Backend" description="OpenAI, CKB RPC, and Fiber RPC are available for live quest work." />
+              <CheckRow passed={rewardLedgerOnline} title="Reward Ledger" description="MongoDB is available to store quest completion and payout claims." />
               <CheckRow passed={isAllGatesPassed} title="Workspace Checks" description="Generated files include proof, test, and denial-path signals." />
               <CheckRow passed={bossFightSolved} title="Boss Challenge" description="The learner defended the generated diff before claiming rewards." />
             </div>
@@ -147,7 +150,7 @@ export default function ShipGateView({
             )}
             {!canShip && !shipped ? (
               <span className="block text-center font-mono text-[10px] uppercase leading-tight text-red-400">
-                Wallet, backend, generated checks, boss solution, and Fiber invoice must all be ready.
+                Wallet, generation backend, reward ledger, generated checks, boss solution, and Fiber invoice must all be ready.
               </span>
             ) : null}
           </div>

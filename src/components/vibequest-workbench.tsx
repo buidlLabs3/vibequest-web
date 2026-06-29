@@ -113,12 +113,12 @@ export function VibeQuestWorkbench() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
 
-  const infrastructureReady = Boolean(
+  const generationBackendReady = Boolean(
     health?.integrations.openai &&
       health.integrations.ckb_rpc &&
-      health.integrations.fiber_rpc &&
-      health.integrations.mongodb,
+      health.integrations.fiber_rpc,
   );
+  const rewardLedgerReady = Boolean(health?.integrations.mongodb);
   const walletBound = Boolean(walletProof);
   const walletAddress = walletProof?.address;
   const walletPracticeRecords = useMemo(
@@ -244,13 +244,13 @@ export function VibeQuestWorkbench() {
         }
 
         if (gate.id === "infrastructure") {
-          return { ...gate, isCompleted: infrastructureReady };
+          return { ...gate, isCompleted: generationBackendReady };
         }
 
         return gate;
       }),
     );
-  }, [infrastructureReady, walletBound]);
+  }, [generationBackendReady, walletBound]);
 
   const upsertPracticeRecord = useCallback((nextRecord: PracticeRecord) => {
     setPracticeRecords((previous) => {
@@ -355,7 +355,8 @@ export function VibeQuestWorkbench() {
           applyQuestRun(activeRun);
         }
       } catch (error) {
-        setHistoryError(error instanceof Error ? error.message : "Quest history failed to load.");
+        const message = error instanceof Error ? error.message : "Quest history failed to load.";
+        setHistoryError(normalizeHistoryError(message));
       } finally {
         setHistoryLoading(false);
       }
@@ -515,7 +516,7 @@ export function VibeQuestWorkbench() {
         setQuestData(mappedQuest);
         setSelectedFile(mappedQuest.files[0] ?? null);
         const warningText = response.persistence?.warning ?? null;
-        setGenerationError(warningText);
+        setGenerationError(null);
         upsertPracticeRecord({
           runId: response.run_id,
           walletAddress: walletProof.address,
@@ -642,7 +643,7 @@ export function VibeQuestWorkbench() {
             onShip={() => setActiveTab("ship-gate")}
             onChallengeComplete={() => markCurrentPracticeRecord("completed")}
             onWorkspaceVerified={() => markCurrentPracticeRecord("verified")}
-            ckbRpcOnline={infrastructureReady}
+            ckbRpcOnline={generationBackendReady}
             generationError={generationError}
           />
         )}
@@ -688,7 +689,8 @@ export function VibeQuestWorkbench() {
         {activeTab === "ship-gate" && (
           <ShipGateView
             walletBound={walletBound}
-            ckbRpcOnline={infrastructureReady}
+            ckbRpcOnline={generationBackendReady}
+            rewardLedgerOnline={rewardLedgerReady}
             questData={enhancedQuestData}
             gates={gates}
             bossFightSolved={bossFightSolved}
@@ -713,6 +715,15 @@ export function VibeQuestWorkbench() {
       />
     </div>
   );
+}
+
+function normalizeHistoryError(message: string) {
+  const lower = message.toLowerCase();
+  if (lower.includes("mongodb") || lower.includes("database") || lower.includes("server selection")) {
+    return "Cloud reward ledger is temporarily unavailable. Local learning records are still available.";
+  }
+
+  return message;
 }
 
 function parseTabId(value: string | null): TabId | null {

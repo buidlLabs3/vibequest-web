@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
+export const maxDuration = 60;
+export const dynamic = "force-dynamic";
+
 const CORE_API_BASE_URL = process.env.CORE_API_BASE_URL?.replace(/\/$/, "");
 const DEFAULT_LOCAL_CORE_API_BASE_URL = "http://localhost:8080";
 

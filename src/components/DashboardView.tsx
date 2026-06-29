@@ -57,14 +57,16 @@ export default function DashboardView({
   historyError,
 }: DashboardViewProps) {
   const infraReady = Boolean(
-    health?.integrations.openai && health.integrations.ckb_rpc && health.integrations.fiber_rpc && health.integrations.mongodb,
+    health?.integrations.openai && health.integrations.ckb_rpc && health.integrations.fiber_rpc,
   );
+  const rewardLedgerReady = Boolean(health?.integrations.mongodb);
   const passedGates = gates.filter((gate) => gate.isCompleted).length;
   const completedPractice = practiceRecords.filter((record) => record.status === "completed" || record.status === "shipped").length;
   const activities = buildActivities({
     walletBound,
     proofLogs,
     infraReady,
+    rewardLedgerReady,
     questData,
     passedGates,
     gateCount: gates.length,
@@ -375,6 +377,7 @@ function buildActivities({
   walletBound,
   proofLogs,
   infraReady,
+  rewardLedgerReady,
   questData,
   passedGates,
   gateCount,
@@ -384,6 +387,7 @@ function buildActivities({
   walletBound: boolean;
   proofLogs: ProofLog[];
   infraReady: boolean;
+  rewardLedgerReady: boolean;
   questData: QuestData | null;
   passedGates: number;
   gateCount: number;
@@ -408,10 +412,17 @@ function buildActivities({
     },
     {
       id: "infra",
-      title: infraReady ? "Backend ready" : "Backend blocked",
-      description: infraReady ? "OpenAI, CKB RPC, and Fiber RPC are reachable." : "Backend services are not ready yet.",
+      title: infraReady ? "Generation backend ready" : "Generation backend blocked",
+      description: infraReady ? "OpenAI, CKB RPC, and Fiber RPC are reachable." : "OpenAI, CKB RPC, or Fiber RPC is not ready yet.",
       time: "live",
       ready: infraReady,
+    },
+    {
+      id: "ledger",
+      title: rewardLedgerReady ? "Reward ledger ready" : "Reward ledger waiting",
+      description: rewardLedgerReady ? "MongoDB can store quest runs and reward claims." : "MongoDB is not reachable yet, so reward claims cannot be locked.",
+      time: "live",
+      ready: rewardLedgerReady,
     },
     {
       id: "quest",
