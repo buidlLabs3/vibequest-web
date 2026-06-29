@@ -292,6 +292,13 @@ export function VibeQuestWorkbench() {
           warning: generationError ?? existing?.warning ?? null,
           updatedAt: now,
           completedAt,
+          questSnapshot: questData,
+          gates,
+          bossFightSolved,
+          shipped: options?.shipped ?? shipped,
+          buildRequest,
+          skillTrack,
+          difficulty,
         };
 
         return [
@@ -302,7 +309,7 @@ export function VibeQuestWorkbench() {
           .slice(0, 30);
       });
     },
-    [generationError, questData, walletProof],
+    [bossFightSolved, buildRequest, difficulty, gates, generationError, questData, shipped, skillTrack, walletProof],
   );
 
   const applyQuestRun = useCallback((run: QuestRunRecord) => {
@@ -335,8 +342,55 @@ export function VibeQuestWorkbench() {
       warning: null,
       updatedAt: run.updated_at,
       completedAt: run.completed_at,
+      questSnapshot: mappedQuest,
+      gates: mappedQuest.gates,
+      bossFightSolved: run.progress.boss_fight_solved,
+      shipped: run.progress.shipped,
+      buildRequest: run.build_prompt,
+      skillTrack: run.skill_track,
+      difficulty: run.difficulty.toUpperCase(),
     });
   }, [upsertPracticeRecord]);
+
+  const openQuestRunRecord = useCallback((run: QuestRunRecord) => {
+    applyQuestRun(run);
+    setGenerationError(null);
+    setActiveTab("workbench");
+  }, [applyQuestRun]);
+
+  const openPracticeRecord = useCallback((record: PracticeRecord) => {
+    if (!record.questSnapshot) {
+      setHistoryError("This older local record has no saved workspace snapshot. Redo a similar quest to rebuild it.");
+      return;
+    }
+
+    setQuestData(record.questSnapshot);
+    setSelectedFile(record.questSnapshot.files[0] ?? null);
+    setGates(record.gates ?? record.questSnapshot.gates);
+    setBossFightSolved(record.bossFightSolved ?? (record.status === "completed" || record.status === "shipped"));
+    setShipped(record.shipped ?? record.status === "shipped");
+    setBuildRequest(record.buildRequest ?? record.title);
+    if (record.skillTrack) setSkillTrack(record.skillTrack);
+    if (record.difficulty) setDifficulty(record.difficulty);
+    setGenerationError(record.warning ?? null);
+    setActiveTab("workbench");
+  }, []);
+
+  const redoQuestRun = useCallback((run: QuestRunRecord) => {
+    setBuildRequest(run.build_prompt);
+    setSkillTrack(run.skill_track);
+    setDifficulty(run.difficulty.toUpperCase());
+    setGenerationError(null);
+    setActiveTab("quest-run");
+  }, []);
+
+  const redoPracticeRecord = useCallback((record: PracticeRecord) => {
+    setBuildRequest(record.buildRequest ?? record.title);
+    if (record.skillTrack) setSkillTrack(record.skillTrack);
+    if (record.difficulty) setDifficulty(record.difficulty);
+    setGenerationError(null);
+    setActiveTab("quest-run");
+  }, []);
 
   const loadQuestHistory = useCallback(
     async (address: string, preferredRunId?: string) => {
@@ -392,7 +446,8 @@ export function VibeQuestWorkbench() {
         });
         void loadQuestHistory(walletProof.address, updated.run_id);
       } catch (error) {
-        setHistoryError(error instanceof Error ? error.message : "Quest progress failed to save.");
+        const message = error instanceof Error ? error.message : "Quest progress failed to save.";
+        setHistoryError(normalizeHistoryError(message));
       }
     },
     [bossFightSolved, gates, loadQuestHistory, questData?.runId, walletProof],
@@ -528,6 +583,13 @@ export function VibeQuestWorkbench() {
           warning: warningText,
           updatedAt: new Date().toISOString(),
           completedAt: null,
+          questSnapshot: mappedQuest,
+          gates: mappedQuest.gates,
+          bossFightSolved: false,
+          shipped: false,
+          buildRequest: request,
+          skillTrack: track,
+          difficulty: rawDifficulty,
         });
         void loadQuestHistory(walletProof.address, response.run_id);
         return true;
@@ -663,6 +725,10 @@ export function VibeQuestWorkbench() {
             onOpenQuestRun={() => setActiveTab("quest-run")}
             onOpenWorkbench={() => setActiveTab("workbench")}
             onOpenShipGate={() => setActiveTab("ship-gate")}
+            onOpenQuestRunRecord={openQuestRunRecord}
+            onOpenPracticeRecord={openPracticeRecord}
+            onRedoQuestRun={redoQuestRun}
+            onRedoPracticeRecord={redoPracticeRecord}
             questRuns={questRuns}
             questStats={questStats}
             rewardClaims={rewardClaims}

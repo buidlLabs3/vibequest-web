@@ -64,4 +64,11 @@ export interface PracticeRecord {
   warning?: string | null;
   updatedAt: string;
   completedAt?: string | null;
+  questSnapshot?: QuestData;
+  gates?: VerificationGate[];
+  bossFightSolved?: boolean;
+  shipped?: boolean;
+  buildRequest?: string;
+  skillTrack?: string;
+  difficulty?: string;
 }

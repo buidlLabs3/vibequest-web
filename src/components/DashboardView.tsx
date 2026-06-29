@@ -28,6 +28,10 @@ interface DashboardViewProps {
   onOpenQuestRun: () => void;
   onOpenWorkbench: () => void;
   onOpenShipGate: () => void;
+  onOpenQuestRunRecord: (run: QuestRunRecord) => void;
+  onOpenPracticeRecord: (record: PracticeRecord) => void;
+  onRedoQuestRun: (run: QuestRunRecord) => void;
+  onRedoPracticeRecord: (record: PracticeRecord) => void;
   questRuns: QuestRunRecord[];
   questStats: UserQuestCounts;
   rewardClaims: RewardClaimRecord[];
@@ -49,6 +53,10 @@ export default function DashboardView({
   onOpenQuestRun,
   onOpenWorkbench,
   onOpenShipGate,
+  onOpenQuestRunRecord,
+  onOpenPracticeRecord,
+  onRedoQuestRun,
+  onRedoPracticeRecord,
   questRuns,
   questStats,
   rewardClaims,
@@ -62,6 +70,10 @@ export default function DashboardView({
   const rewardLedgerReady = Boolean(health?.integrations.mongodb);
   const passedGates = gates.filter((gate) => gate.isCompleted).length;
   const completedPractice = practiceRecords.filter((record) => record.status === "completed" || record.status === "shipped").length;
+  const localInProgress = practiceRecords.filter((record) => record.status !== "completed" && record.status !== "shipped").length;
+  const questsStarted = Math.max(questStats.created, practiceRecords.length);
+  const completedCount = Math.max(questStats.completed, completedPractice);
+  const inProgressCount = Math.max(questStats.uncompleted, localInProgress);
   const activities = buildActivities({
     walletBound,
     proofLogs,
@@ -151,28 +163,28 @@ export default function DashboardView({
       <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         <MetricCard
           icon={<Code2 className="h-5 w-5 text-electric-blue" />}
-          label="Created Quests"
-          value={String(questStats.created)}
-          detail="Total generated runs stored in MongoDB"
-          ready={questStats.created > 0}
+          label="Quests Started"
+          value={String(questsStarted)}
+          detail="Learning quests saved to your account"
+          ready={questsStarted > 0}
           actionLabel="Generate"
           onAction={onOpenQuestRun}
         />
         <MetricCard
           icon={<CheckCircle className="h-5 w-5 text-cyber-green" />}
           label="Completed"
-          value={String(questStats.completed)}
-          detail="Runs shipped through the proof envelope"
-          ready={questStats.completed > 0}
+          value={String(completedCount)}
+          detail="Quests where code, checks, and boss challenge are done"
+          ready={completedCount > 0}
           actionLabel="Ship Gate"
           onAction={onOpenShipGate}
         />
         <MetricCard
           icon={<Clock className="h-5 w-5 text-warning-amber" />}
-          label="Uncompleted"
-          value={String(questStats.uncompleted)}
-          detail="Runs still waiting on gates, boss, or ship"
-          ready={questStats.uncompleted === 0 && questStats.created > 0}
+          label="In Progress"
+          value={String(inProgressCount)}
+          detail="Quests you can continue from history"
+          ready={inProgressCount === 0 && questsStarted > 0}
           actionLabel="Workbench"
           onAction={onOpenWorkbench}
         />
@@ -191,7 +203,7 @@ export default function DashboardView({
         <div className="flex flex-col gap-6">
           <div className="rounded-xl border border-glass-border bg-[#16181D] p-5">
             <div className="mb-4 flex items-center justify-between border-b border-glass-border pb-3">
-              <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Stored Quest Runs</h2>
+              <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Quest History</h2>
               <span className="font-mono text-xs text-on-surface-variant">{historyLoading ? "syncing" : questRuns.length}</span>
             </div>
             {historyError ? (
@@ -205,19 +217,27 @@ export default function DashboardView({
                     <div className="flex items-center justify-between gap-3">
                       <h3 className="line-clamp-1 text-xs font-bold text-white">{run.quest.title}</h3>
                       <span className={"rounded border px-2 py-0.5 font-mono text-[10px] uppercase " + (run.status === "completed" ? "border-cyber-green/20 bg-cyber-green/10 text-cyber-green" : "border-warning-amber/20 bg-warning-amber/10 text-warning-amber")}>
-                        {run.status}
+                        {run.status === "completed" ? "completed" : "continue"}
                       </span>
                     </div>
                     <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-on-surface-variant">{run.build_prompt}</p>
                     <p className="mt-2 font-mono text-[10px] uppercase text-on-surface-variant">
                       {run.skill_track} / {run.difficulty} / {new Date(run.updated_at).toLocaleDateString()}
                     </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button onClick={() => onOpenQuestRunRecord(run)} className="rounded border border-electric-blue/30 px-3 py-1.5 font-mono text-[10px] font-bold uppercase text-electric-blue hover:bg-electric-blue/10">
+                        Review / Continue
+                      </button>
+                      <button onClick={() => onRedoQuestRun(run)} className="rounded border border-glass-border px-3 py-1.5 font-mono text-[10px] font-bold uppercase text-on-surface-variant hover:text-white">
+                        Redo Similar
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
             ) : (
               <div className="rounded-lg border border-dashed border-glass-border p-5 text-center text-xs text-on-surface-variant">
-                No MongoDB quest runs stored for this wallet yet.
+                No saved cloud quests yet. Local learning records below can still be reviewed when available.
               </div>
             )}
           </div>
@@ -238,7 +258,7 @@ export default function DashboardView({
                       </span>
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase text-on-surface-variant">
-                      <span>{record.savedToCloud ? "cloud saved" : "local practice"}</span>
+                      <span>{record.savedToCloud ? "cloud saved" : "local review"}</span>
                       <span>/</span>
                       <span>{record.source ?? "vibequest"}</span>
                       <span>/</span>
@@ -247,6 +267,14 @@ export default function DashboardView({
                     {record.warning ? (
                       <p className="mt-2 line-clamp-2 text-[11px] leading-relaxed text-warning-amber">{record.warning}</p>
                     ) : null}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button onClick={() => onOpenPracticeRecord(record)} className="rounded border border-electric-blue/30 px-3 py-1.5 font-mono text-[10px] font-bold uppercase text-electric-blue hover:bg-electric-blue/10">
+                        {record.questSnapshot ? "Review / Continue" : "Details"}
+                      </button>
+                      <button onClick={() => onRedoPracticeRecord(record)} className="rounded border border-glass-border px-3 py-1.5 font-mono text-[10px] font-bold uppercase text-on-surface-variant hover:text-white">
+                        Redo Similar
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
