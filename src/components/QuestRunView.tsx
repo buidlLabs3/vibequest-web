@@ -34,32 +34,64 @@ export default function QuestRunView({
   generationError,
 }: QuestRunViewProps) {
 
+  const learnerPaths = [
+    {
+      role: "Builder",
+      outcome: "Ship safer CKB/Fiber code",
+      prompt: "Build a Fiber payment flow with CKB witness checks, then teach me the exact trust boundary and the denial test that proves it is safe.",
+      track: "Fiber Builder",
+    },
+    {
+      role: "Auditor",
+      outcome: "Find replay and mismatch bugs",
+      prompt: "Generate a CKB/Fiber verifier with one realistic replay or mismatched-witness risk, then make the challenge teach me how to detect and patch it.",
+      track: "CKB Fundamentals",
+    },
+    {
+      role: "Product / Community",
+      outcome: "Understand without writing everything",
+      prompt: "Create a non-trivial CKB/Fiber quest that explains what the code enables, what can go wrong, and how a community/product lead should evaluate the risk.",
+      track: "AI Discipline",
+    },
+    {
+      role: "Researcher",
+      outcome: "Map protocol concepts to code",
+      prompt: "Turn a CKB cell/script/witness or Fiber HTLC/channel-state concept into a compact code quest with references, invariants, and a failure case.",
+      track: "CKB Fundamentals",
+    },
+  ];
+
   const promptBlocks = [
     {
-      category: "Nervos CKB Logic",
+      category: "Trust Boundaries",
       items: [
-        "Include signature verification for multiple witnesses",
-        "Add a cell timelock restriction under 100 epochs",
-        "Enforce strict payout split using a custom lock script witness",
+        "Bind receipt proof to reader, content, run id, and CKB cell",
+        "Reject stale Fiber channel state or replayed HTLC preimages",
+        "Explain what is checked locally versus proven by CKB witness data",
       ]
     },
     {
-      category: "Fiber Payment Channels",
+      category: "Economic Logic",
       items: [
-        "Configure atomic HTLC-based multi-hop route logic",
-        "Add an active channel balance split with fraud proofs",
-        "Create an off-chain invoice generator that signs proofs",
+        "Verify xUDT payout split and rounding behavior",
+        "Check creator, sponsor, and protocol fee recipients",
+        "Prevent over-claiming from active channel balance transitions",
       ]
     },
     {
-      category: "Verification Constraints",
+      category: "Learning Challenge",
       items: [
-        "Include a Rust integration test that blocks unauthorized reads",
-        "Validate CKB cell script transaction layout witness checks",
-        "Check that input cell capacity matches exact output split rules",
+        "Ask a code-specific boss question with wrong answers that teach",
+        "Include a denial test that mutates the exact trusted field",
+        "Explain the generated code for a non-engineer and an engineer",
       ]
     }
   ];
+
+  const applyLearnerPath = (path: (typeof learnerPaths)[number]) => {
+    setSkillTrack(path.track);
+    setBuildRequest(path.prompt);
+  };
 
   const handleStitchPrompt = (blockText: string) => {
     if (buildRequest.trim() === "") {
@@ -85,7 +117,7 @@ export default function QuestRunView({
           Quest Compiler Dashboard
         </h1>
         <p className="text-on-surface-variant text-sm mt-1 max-w-xl">
-          Compose a real CKB/Fiber build request, add focused constraints, and generate a backend quest into the workbench.
+          Start from the learner&apos;s role, then generate a code-aware quest with explanations, failure cases, and a boss challenge tied to the generated files.
         </p>
       </div>
 
@@ -96,11 +128,31 @@ export default function QuestRunView({
             <div className="flex items-center gap-2 border-b border-glass-border pb-3">
               <Sliders className="text-electric-blue w-5 h-5" />
               <h2 className="text-sm font-mono font-bold uppercase tracking-wider text-white">
-                Prompt Accelerators
+                Learner Intent
               </h2>
             </div>
 
-            <div className="flex flex-col gap-5 max-h-[460px] overflow-y-auto pr-1">
+            <div className="grid gap-3">
+              {learnerPaths.map((path) => (
+                <button
+                  key={path.role}
+                  onClick={() => applyLearnerPath(path)}
+                  className="rounded-lg border border-glass-border/70 bg-[#0B0C0E]/60 p-4 text-left transition-colors hover:border-electric-blue/40 hover:bg-[#1C1F26]"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-bold text-white">{path.role}</span>
+                    <ChevronRight className="h-4 w-4 text-electric-blue" />
+                  </div>
+                  <p className="mt-1 text-xs leading-relaxed text-on-surface-variant">{path.outcome}</p>
+                </button>
+              ))}
+            </div>
+
+            <div className="border-t border-glass-border pt-4">
+              <h3 className="font-mono text-[10px] font-bold uppercase tracking-wider text-electric-blue">Deepen the quest</h3>
+            </div>
+
+            <div className="flex flex-col gap-5 max-h-[360px] overflow-y-auto pr-1">
               {promptBlocks.map((cat, idx) => (
                 <div key={idx} className="flex flex-col gap-2.5">
                   <span className="font-mono text-[10px] text-electric-blue uppercase tracking-wider font-bold">
@@ -146,7 +198,7 @@ export default function QuestRunView({
                 onChange={(e) => setBuildRequest(e.target.value)}
                 rows={5}
                 className="w-full bg-[#0B0C0E] border border-glass-border rounded-lg p-3.5 font-mono text-xs text-cyber-green leading-relaxed focus:outline-none focus:border-cyber-green/50 resize-none shadow-inner"
-                placeholder="Describe the CKB/Fiber app, proof behavior, and tests you want generated..."
+                placeholder="Describe what you want to understand or build: verifier, payout split, receipt proof, wallet flow, protocol risk, or community-facing explanation..."
               />
             </div>
 

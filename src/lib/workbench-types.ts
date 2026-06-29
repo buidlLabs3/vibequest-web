@@ -12,14 +12,27 @@ export interface VerificationGate {
   isCompleted: boolean;
 }
 
+export interface BossOption {
+  label: string;
+  rationale: string;
+}
+
 export interface BossFight {
   title: string;
   challenge: string;
   question: string;
-  options: string[];
+  options: BossOption[];
   correctAnswerIndex: number;
   hint: string;
   victoryMessage: string;
+  insight: string;
+  resources: LearningResource[];
+}
+
+export interface LearningResource {
+  title: string;
+  url: string;
+  reason: string;
 }
 
 export interface QuestData {

@@ -26,6 +26,7 @@ import {
 } from "@/lib/api";
 import type {
   BossFight,
+  LearningResource,
   PracticeRecord,
   ProofLog,
   QuestData,
@@ -892,21 +893,196 @@ function mapQuestRunRecord(run: QuestRunRecord): QuestData {
   });
 }
 
+type CodeInsights = {
+  primaryInvariant: string;
+  denialPath: string;
+  paymentProof: string;
+  networkHook: string;
+  riskFocus: string;
+  vulnerableLine: string;
+  testLine: string;
+  reviewChecklist: string[];
+  mentorPrompts: string[];
+  resources: LearningResource[];
+};
+
 function buildBossFight(response: GenerateQuestResponse): BossFight {
+  const questData = mapQuestBlueprintForAnalysis(response);
+  const insights = analyzeQuestCode(questData);
+  const correctIndex = stableChoiceIndex(response.run_id, response.quest.title, insights.riskFocus);
+  const correct = {
+    label: `Defend ${insights.riskFocus} by proving ${insights.primaryInvariant.toLowerCase()}`,
+    rationale: `Correct. The generated code only deserves a badge after the learner can explain the invariant, point to ${insights.vulnerableLine}, and show the denial test at ${insights.testLine}.`,
+  };
+  const distractors = [
+    {
+      label: "Trust the generated implementation because it has a passing test file.",
+      rationale: "A passing-looking test is not enough. Vibecoded systems fail when tests do not attack the trust boundary or replay/mismatch cases.",
+    },
+    {
+      label: "Check only the wallet proof and skip the generated business logic.",
+      rationale: "Wallet identity matters, but this quest is about whether the generated verifier binds payment, CKB state, and reader/action correctly.",
+    },
+    {
+      label: "Claim rewards once the UI renders and a reward amount exists.",
+      rationale: "Rendering and reward metadata do not prove understanding. The learner must defend the code path that blocks abuse.",
+    },
+  ];
+  const options = insertAt(distractors, correct, correctIndex);
+
   return {
     title: response.quest.title,
     challenge: response.quest.boss_fight,
-    question: "What must you prove before VibeQuest should unlock rewards for this generated run?",
-    options: [
-      "That the wallet proof is valid, the generated code is understood, and the trust boundary is defended.",
-      "That the AI generated enough files to look complete.",
-      "That the frontend can render without opening the workbench files.",
-      "That a reward amount exists even if the user cannot explain the diff.",
-    ],
-    correctAnswerIndex: 0,
-    hint: response.quest.ckb_fiber_hooks.join(" "),
-    victoryMessage: "You connected the wallet proof, quest code, and reward gates into one defended shipping path.",
+    question: `In this quest's generated code, what is the strongest proof that the AI output is safe to ship?`,
+    options,
+    correctAnswerIndex: correctIndex,
+    hint: `${insights.paymentProof} ${insights.denialPath}`,
+    victoryMessage: `You defended ${insights.riskFocus}, tied it to the generated tests, and turned the AI output into code you actually understand.`,
+    insight: `Focus on ${insights.vulnerableLine}. That is where a vibecoder can accidentally trust a string, receipt, witness, channel state, or payout split without binding it to the action being authorized.`,
+    resources: insights.resources,
   };
+}
+
+function mapQuestBlueprintForAnalysis(response: GenerateQuestResponse): QuestData {
+  const files = response.quest.workbench_files.map((file) => ({
+    name: file.path.split("/").pop() ?? file.path,
+    path: file.path,
+    content: file.content,
+    description: `${file.language.toUpperCase()} workbench file generated for ${response.quest.title}.`,
+  }));
+
+  return {
+    runId: response.run_id,
+    source: response.source,
+    questName: response.quest.title,
+    description: response.quest.build_objective,
+    files,
+    gates: [],
+    bossFight: {
+      title: response.quest.title,
+      challenge: response.quest.boss_fight,
+      question: "",
+      options: [],
+      correctAnswerIndex: 0,
+      hint: "",
+      victoryMessage: "",
+      insight: "",
+      resources: [],
+    },
+  };
+}
+
+function analyzeQuestCode(quest: QuestData): CodeInsights {
+  const haystack = quest.files.map((file) => `${file.path}\n${file.content}`).join("\n");
+  const lower = haystack.toLowerCase();
+  const hasReceipt = /receipt|invoice|preimage|htlc/.test(lower);
+  const hasWitness = /witness|script|cell|xudt|capacity|lock/.test(lower);
+  const hasSplit = /split|bps|creator|platform|payout|balance/.test(lower);
+  const hasChannel = /channel|state|route|hop|fiber/.test(lower);
+  const hasDenial = /throw|reject|false|invalid|unpaid|forbid|deny|mismatch/.test(lower);
+  const vulnerableLine = findLineReference(quest.files, /(verify|read|validate|authorize|can[A-Z]|return|throw|receipt|witness|invoice|preimage|split|payout)/i);
+  const testLine = findLineReference(quest.files, /(test|it\(|expect|assert|throws|false|reject|unpaid|invalid|mismatch)/i);
+
+  const primaryInvariant = hasSplit
+    ? "the payout or balance split must match the authorized asset and state transition"
+    : hasReceipt
+      ? "the receipt proof must be bound to the exact reader, action, and content/cell state"
+      : hasWitness
+        ? "the CKB witness and script data must match the transaction state being accepted"
+        : "the generated verifier must reject any input that is not explicitly authorized";
+  const riskFocus = hasSplit
+    ? "payout split integrity"
+    : hasChannel
+      ? "Fiber channel-state replay risk"
+      : hasReceipt
+        ? "receipt replay and unpaid-read risk"
+        : hasWitness
+          ? "CKB witness trust boundary"
+          : "generated-code trust boundary";
+
+  return {
+    primaryInvariant,
+    denialPath: hasDenial
+      ? `There is a denial path to inspect at ${testLine}; make sure it attacks the same condition the verifier trusts.`
+      : "The generated files do not make the denial path obvious, so the learner should add one before shipping.",
+    paymentProof: hasReceipt
+      ? "Payment proof is represented through receipt/invoice/preimage terms; verify it cannot be copied across users, content, or runs."
+      : "Payment proof is indirect here; identify what state or witness stands in for payment authorization.",
+    networkHook: hasWitness
+      ? "CKB state appears through cell/script/witness/xUDT concepts; explain what is trusted on-chain versus checked locally."
+      : hasChannel
+        ? "Fiber state appears through channel/HTLC/route terms; explain what prevents replay or stale state acceptance."
+        : "The quest mentions CKB/Fiber, but the code should be inspected for a concrete network-state binding.",
+    riskFocus,
+    vulnerableLine,
+    testLine,
+    reviewChecklist: [
+      `Trace the accepting branch at ${vulnerableLine}.`,
+      `Match every trusted field to a denial test around ${testLine}.`,
+      "Ask what an attacker can copy, omit, or mutate without changing the UI.",
+      "Explain the CKB/Fiber boundary in plain language before claiming the badge.",
+    ],
+    mentorPrompts: [
+      "What does this verifier trust?",
+      "How could this be replayed?",
+      "Which test proves unpaid access is blocked?",
+      "What should I patch before shipping?",
+    ],
+    resources: learningResourcesFor(lower),
+  };
+}
+
+function findLineReference(files: WorkbenchFile[], pattern: RegExp) {
+  for (const file of files) {
+    const lines = file.content.split("\n");
+    const index = lines.findIndex((line) => pattern.test(line));
+    if (index >= 0) {
+      return `${file.path}:${index + 1}`;
+    }
+  }
+
+  return files[0] ? `${files[0].path}:1` : "generated workspace:1";
+}
+
+function learningResourcesFor(lower: string): LearningResource[] {
+  const resources: LearningResource[] = [
+    {
+      title: "CKB Docs",
+      url: "https://docs.nervos.org/",
+      reason: "Use this to connect cells, scripts, witnesses, and transaction state to the generated verifier.",
+    },
+    {
+      title: "Fiber Network Repository",
+      url: "https://github.com/nervosnetwork/fiber",
+      reason: "Use this when a quest mentions Fiber channels, HTLCs, invoices, routing, or off-chain payment state.",
+    },
+    {
+      title: "JoyID Documentation",
+      url: "https://docs.joy.id/",
+      reason: "Use this to understand the wallet/passkey proof that binds the learner to a quest run.",
+    },
+  ];
+
+  if (lower.includes("xudt") || lower.includes("sudt") || lower.includes("asset")) {
+    resources.unshift({
+      title: "CKB Token Standards",
+      url: "https://docs.nervos.org/",
+      reason: "Review token and asset concepts before trusting generated xUDT payout logic.",
+    });
+  }
+
+  return resources.slice(0, 3);
+}
+
+function insertAt<T>(items: T[], item: T, index: number) {
+  const next = [...items];
+  next.splice(index, 0, item);
+  return next;
+}
+
+function stableChoiceIndex(...parts: string[]) {
+  const total = parts.join(":").split("").reduce((sum, character) => sum + character.charCodeAt(0), 0);
+  return total % 4;
 }
 
 function shortAddress(address: string) {

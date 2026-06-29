@@ -9,9 +9,12 @@ import {
   Cpu, 
   Award,
   RefreshCw,
-  Clock
+  Clock,
+  BookOpen,
+  MessageSquare,
+  ExternalLink,
 } from "lucide-react";
-import { QuestData, WorkbenchFile, VerificationGate } from "@/lib/workbench-types";
+import { QuestData, WorkbenchFile, VerificationGate, type LearningResource } from "@/lib/workbench-types";
 
 const EMPTY_WORKSPACE_FILES: WorkbenchFile[] = [];
 
@@ -197,10 +200,13 @@ export default function WorkbenchView({
   const [bossAnswer, setBossAnswer] = useState<number | null>(null);
   const [bossFeedback, setBossFeedback] = useState<string | null>(null);
   const [showBossHint, setShowBossHint] = useState(false);
+  const [mentorQuestion, setMentorQuestion] = useState("");
+  const [mentorAnswer, setMentorAnswer] = useState<string | null>(null);
   const [codeTheme, setCodeTheme] = useState<CodeThemeId>("nebula");
 
   const workspaceFiles = questData?.files ?? EMPTY_WORKSPACE_FILES;
   const activeCodeTheme = CODE_THEMES[codeTheme];
+  const codeInsights = questData ? analyzeQuestCode(questData) : null;
 
   useEffect(() => {
     if (workspaceFiles.length === 0) {
@@ -281,10 +287,24 @@ export default function WorkbenchView({
     }
   };
 
+  const askMentor = () => {
+    if (!questData || !codeInsights) return;
+    setMentorAnswer(buildMentorAnswer(mentorQuestion, questData, codeInsights));
+  };
+
+  const applyMentorPrompt = (prompt: string) => {
+    setMentorQuestion(prompt);
+    if (questData && codeInsights) {
+      setMentorAnswer(buildMentorAnswer(prompt, questData, codeInsights));
+    }
+  };
+
   useEffect(() => {
     setBossAnswer(null);
     setBossFeedback(null);
     setShowBossHint(false);
+    setMentorQuestion("");
+    setMentorAnswer(null);
     setTestConsoleLogs([]);
   }, [questData?.questName]);
 
@@ -589,6 +609,100 @@ export default function WorkbenchView({
             </div>
           </div>
 
+          {questData && codeInsights && (
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+              <div className="rounded-xl border border-glass-border bg-[#16181D] p-5">
+                <div className="mb-4 flex items-center justify-between border-b border-glass-border pb-3">
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="h-5 w-5 text-electric-blue" />
+                    <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Code Explainer</h2>
+                  </div>
+                  <span className="font-mono text-[10px] uppercase text-on-surface-variant">Trust boundary map</span>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <InsightCard label="Primary invariant" value={codeInsights.primaryInvariant} />
+                  <InsightCard label="Denial path" value={codeInsights.denialPath} />
+                  <InsightCard label="Payment proof" value={codeInsights.paymentProof} />
+                  <InsightCard label="CKB/Fiber hook" value={codeInsights.networkHook} />
+                </div>
+                <div className="mt-4 rounded-lg border border-electric-blue/20 bg-electric-blue/5 p-4">
+                  <h3 className="font-mono text-xs font-bold uppercase text-electric-blue">What to inspect first</h3>
+                  <ul className="mt-3 space-y-2 text-xs leading-relaxed text-on-surface-variant">
+                    {codeInsights.reviewChecklist.map((item) => (
+                      <li key={item} className="flex gap-2">
+                        <CheckCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyber-green" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-glass-border bg-[#16181D] p-5">
+                <div className="mb-4 flex items-center gap-2 border-b border-glass-border pb-3">
+                  <MessageSquare className="h-5 w-5 text-cyber-green" />
+                  <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Ask About This Code</h2>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {codeInsights.mentorPrompts.map((prompt) => (
+                    <button
+                      key={prompt}
+                      onClick={() => applyMentorPrompt(prompt)}
+                      className="rounded-lg border border-glass-border bg-[#0B0C0E]/70 px-3 py-2 text-left font-mono text-[10px] uppercase leading-tight text-on-surface-variant transition-colors hover:border-electric-blue/40 hover:text-white"
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  value={mentorQuestion}
+                  onChange={(event) => setMentorQuestion(event.target.value)}
+                  rows={3}
+                  placeholder="Ask why a receipt check matters, how to attack this verifier, or what the test is proving..."
+                  className="mt-4 w-full resize-none rounded-lg border border-glass-border bg-[#0B0C0E] p-3 text-xs leading-relaxed text-white outline-none placeholder:text-on-surface-variant focus:border-cyber-green"
+                />
+                <button
+                  onClick={askMentor}
+                  disabled={!mentorQuestion.trim()}
+                  className="mt-3 w-full rounded-lg bg-cyber-green py-3 text-xs font-black uppercase tracking-wider text-black transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:brightness-50"
+                >
+                  Explain From Active Code
+                </button>
+                {mentorAnswer && (
+                  <div className="mt-4 whitespace-pre-wrap rounded-lg border border-cyber-green/20 bg-cyber-green/5 p-4 text-xs leading-relaxed text-on-surface-variant">
+                    {mentorAnswer}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {questData?.bossFight.resources?.length ? (
+            <div className="rounded-xl border border-glass-border bg-[#16181D] p-5">
+              <div className="mb-4 flex items-center gap-2 border-b border-glass-border pb-3">
+                <BookOpen className="h-5 w-5 text-electric-blue" />
+                <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Reference Trail</h2>
+              </div>
+              <div className="grid gap-3 md:grid-cols-3">
+                {questData.bossFight.resources.map((resource) => (
+                  <a
+                    key={resource.url}
+                    href={resource.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-lg border border-glass-border bg-[#0B0C0E]/70 p-4 transition-colors hover:border-electric-blue/40"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <h3 className="text-sm font-bold text-white">{resource.title}</h3>
+                      <ExternalLink className="h-4 w-4 shrink-0 text-electric-blue" />
+                    </div>
+                    <p className="mt-2 text-xs leading-relaxed text-on-surface-variant">{resource.reason}</p>
+                  </a>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           {/* Verification Console Terminal logs */}
           {testConsoleLogs.length > 0 && (
             <div className="bg-[#0B0C0E] border border-glass-border rounded-xl p-4 font-mono text-xs text-cyber-green flex flex-col gap-1 h-[220px] overflow-y-auto shadow-inner">
@@ -639,6 +753,7 @@ export default function WorkbenchView({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
                 {questData.bossFight.options.map((opt, idx) => {
                   const isSelected = bossAnswer === idx;
+                  const isCorrect = idx === questData.bossFight.correctAnswerIndex;
                   return (
                     <button
                       key={idx}
@@ -648,14 +763,19 @@ export default function WorkbenchView({
                           setBossFeedback(null);
                         }
                       }}
-                      className={`text-left p-3.5 rounded font-mono text-xs border transition-all cursor-pointer ${
+                      className={`text-left p-3.5 rounded border transition-all cursor-pointer ${
                         isSelected
-                          ? "border-red-500 bg-red-500/15 text-white font-bold"
+                          ? "border-red-500 bg-red-500/15 text-white"
                           : "border-red-900/20 text-gray-400 hover:bg-white/5 hover:text-white"
                       }`}
                     >
-                      <span className="font-extrabold mr-2 text-red-500">[{String.fromCharCode(65 + idx)}]</span>
-                      {opt}
+                      <span className="font-mono text-[10px] font-extrabold mr-2 text-red-500">[{String.fromCharCode(65 + idx)}]</span>
+                      <span className="text-xs font-bold">{opt.label}</span>
+                      {(isSelected || bossFeedback === "SUCCESS") && (
+                        <span className={`mt-2 block text-[11px] leading-relaxed ${isCorrect ? "text-cyber-green" : "text-red-300"}`}>
+                          {opt.rationale}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -700,8 +820,9 @@ export default function WorkbenchView({
               </div>
 
               {showBossHint && (
-                <div className="text-xs font-mono text-red-400/80 bg-red-950/20 p-3 rounded border border-red-900/25 mt-2">
-                  <span className="font-bold">VQ-CORE ASSIST HINT:</span> {questData.bossFight.hint}
+                <div className="space-y-2 text-xs text-red-300 bg-red-950/20 p-3 rounded border border-red-900/25 mt-2">
+                  <p className="font-mono leading-relaxed"><span className="font-bold">VQ-CORE ASSIST HINT:</span> {questData.bossFight.hint}</p>
+                  <p className="leading-relaxed text-red-200/80">{questData.bossFight.insight}</p>
                 </div>
               )}
             </div>
@@ -810,6 +931,157 @@ export default function WorkbenchView({
       )}
     </div>
   );
+}
+
+function InsightCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-glass-border bg-[#0B0C0E]/70 p-4">
+      <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">{label}</span>
+      <p className="mt-2 text-xs leading-relaxed text-white">{value}</p>
+    </div>
+  );
+}
+
+type CodeInsights = {
+  primaryInvariant: string;
+  denialPath: string;
+  paymentProof: string;
+  networkHook: string;
+  riskFocus: string;
+  vulnerableLine: string;
+  testLine: string;
+  reviewChecklist: string[];
+  mentorPrompts: string[];
+  resources: LearningResource[];
+};
+
+function analyzeQuestCode(quest: QuestData): CodeInsights {
+  const haystack = quest.files.map((file) => `${file.path}\n${file.content}`).join("\n");
+  const lower = haystack.toLowerCase();
+  const hasReceipt = /receipt|invoice|preimage|htlc/.test(lower);
+  const hasWitness = /witness|script|cell|xudt|capacity|lock/.test(lower);
+  const hasSplit = /split|bps|creator|platform|payout|balance/.test(lower);
+  const hasChannel = /channel|state|route|hop|fiber/.test(lower);
+  const hasDenial = /throw|reject|false|invalid|unpaid|forbid|deny|mismatch/.test(lower);
+  const vulnerableLine = findLineReference(quest.files, /(verify|read|validate|authorize|can[A-Z]|return|throw|receipt|witness|invoice|preimage|split|payout)/i);
+  const testLine = findLineReference(quest.files, /(test|it\(|expect|assert|throws|false|reject|unpaid|invalid|mismatch)/i);
+  const primaryInvariant = hasSplit
+    ? "the payout or balance split must match the authorized asset and state transition"
+    : hasReceipt
+      ? "the receipt proof must be bound to the exact reader, action, and content/cell state"
+      : hasWitness
+        ? "the CKB witness and script data must match the transaction state being accepted"
+        : "the generated verifier must reject any input that is not explicitly authorized";
+  const riskFocus = hasSplit
+    ? "payout split integrity"
+    : hasChannel
+      ? "Fiber channel-state replay risk"
+      : hasReceipt
+        ? "receipt replay and unpaid-read risk"
+        : hasWitness
+          ? "CKB witness trust boundary"
+          : "generated-code trust boundary";
+
+  return {
+    primaryInvariant,
+    denialPath: hasDenial
+      ? `There is a denial path to inspect at ${testLine}; make sure it attacks the same condition the verifier trusts.`
+      : "The generated files do not make the denial path obvious, so the learner should add one before shipping.",
+    paymentProof: hasReceipt
+      ? "Payment proof is represented through receipt/invoice/preimage terms; verify it cannot be copied across users, content, or runs."
+      : "Payment proof is indirect here; identify what state or witness stands in for payment authorization.",
+    networkHook: hasWitness
+      ? "CKB state appears through cell/script/witness/xUDT concepts; explain what is trusted on-chain versus checked locally."
+      : hasChannel
+        ? "Fiber state appears through channel/HTLC/route terms; explain what prevents replay or stale state acceptance."
+        : "The quest mentions CKB/Fiber, but the code should be inspected for a concrete network-state binding.",
+    riskFocus,
+    vulnerableLine,
+    testLine,
+    reviewChecklist: [
+      `Trace the accepting branch at ${vulnerableLine}.`,
+      `Match every trusted field to a denial test around ${testLine}.`,
+      "Ask what an attacker can copy, omit, or mutate without changing the UI.",
+      "Explain the CKB/Fiber boundary in plain language before claiming the badge.",
+    ],
+    mentorPrompts: [
+      "What does this verifier trust?",
+      "How could this be replayed?",
+      "Which test proves unpaid access is blocked?",
+      "What should I patch before shipping?",
+    ],
+    resources: learningResourcesFor(lower),
+  };
+}
+
+function buildMentorAnswer(question: string, _quest: QuestData, insights: CodeInsights) {
+  const selected = question.trim() || "Explain the active generated code.";
+  const lower = selected.toLowerCase();
+  const focus = lower.includes("replay")
+    ? `Replay risk: look for any receipt, witness, invoice, preimage, or channel state that is accepted without being bound to this run/content/user. Start at ${insights.vulnerableLine}.`
+    : lower.includes("test") || lower.includes("blocked")
+      ? `Test focus: ${insights.testLine} should prove the denial path, not only the happy path. A strong test mutates the exact field the verifier trusts.`
+      : lower.includes("patch") || lower.includes("ship")
+        ? `Patch focus: make the accepted proof bind the action, actor, asset, and CKB/Fiber state. Then add a denial test before recording the badge.`
+        : `Trust-boundary focus: ${insights.primaryInvariant}. The accepting branch is around ${insights.vulnerableLine}.`;
+  const resourceLines = insights.resources
+    .slice(0, 3)
+    .map((resource) => `- ${resource.title}: ${resource.reason} (${resource.url})`)
+    .join("\n");
+
+  return [
+    `Question: ${selected}`,
+    "",
+    focus,
+    "",
+    `Why it matters: ${insights.riskFocus} is where vibecoded CKB/Fiber apps become dangerous. The code can look clean while still accepting a copied receipt, stale channel state, wrong witness, or incorrect payout split.`,
+    "",
+    `Code reading route: ${insights.reviewChecklist.join(" -> ")}`,
+    "",
+    `Related references:\n${resourceLines}`,
+  ].join("\n");
+}
+
+function findLineReference(files: WorkbenchFile[], pattern: RegExp) {
+  for (const file of files) {
+    const lines = file.content.split("\n");
+    const index = lines.findIndex((line) => pattern.test(line));
+    if (index >= 0) {
+      return `${file.path}:${index + 1}`;
+    }
+  }
+
+  return files[0] ? `${files[0].path}:1` : "generated workspace:1";
+}
+
+function learningResourcesFor(lower: string): LearningResource[] {
+  const resources: LearningResource[] = [
+    {
+      title: "CKB Docs",
+      url: "https://docs.nervos.org/",
+      reason: "Connect cells, scripts, witnesses, and transaction state to the generated verifier.",
+    },
+    {
+      title: "Fiber Network Repository",
+      url: "https://github.com/nervosnetwork/fiber",
+      reason: "Use this when a quest mentions Fiber channels, HTLCs, invoices, routing, or off-chain payment state.",
+    },
+    {
+      title: "JoyID Documentation",
+      url: "https://docs.joy.id/",
+      reason: "Understand the wallet/passkey proof that binds the learner to a quest run.",
+    },
+  ];
+
+  if (lower.includes("xudt") || lower.includes("sudt") || lower.includes("asset")) {
+    resources.unshift({
+      title: "CKB Token Standards",
+      url: "https://docs.nervos.org/",
+      reason: "Review token and asset concepts before trusting generated xUDT payout logic.",
+    });
+  }
+
+  return resources.slice(0, 3);
 }
 
 function getLanguageLabel(file: WorkbenchFile) {

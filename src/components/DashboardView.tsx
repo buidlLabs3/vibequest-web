@@ -95,34 +95,57 @@ export default function DashboardView({
         </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <MetricCard
-          icon={<Wallet className="h-5 w-5 text-electric-blue" />}
-          label="Wallet Proof"
-          value={walletBound ? "Bound" : "Missing"}
-          detail={walletBound ? walletLabel ?? "JoyID" : "Sign once to unlock quest generation"}
-          ready={walletBound}
-          actionLabel={walletBound ? "Manage" : "Connect"}
-          onAction={onConnectWallet}
-        />
-        <MetricCard
-          icon={<Code2 className="h-5 w-5 text-warning-amber" />}
-          label="Active Quest"
-          value={questData ? "Loaded" : "None"}
-          detail={questData?.questName ?? "Generate a quest to begin"}
-          ready={Boolean(questData)}
-          actionLabel={questData ? "Workbench" : "Generate"}
-          onAction={questData ? onOpenWorkbench : onOpenQuestRun}
-        />
-        <MetricCard
-          icon={<ShieldCheck className="h-5 w-5 text-cyber-green" />}
-          label="Gate Progress"
-          value={passedGates + "/" + gates.length}
-          detail={shipped ? "Proof envelope locked" : bossFightSolved ? "Boss solved" : "Complete gates to ship"}
-          ready={passedGates === gates.length && bossFightSolved}
-          actionLabel="Ship"
-          onAction={onOpenShipGate}
-        />
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.35fr_0.65fr]">
+        <div className="rounded-xl border border-electric-blue/25 bg-[#121820] p-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div>
+              <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-electric-blue">Current learning objective</span>
+              <h2 className="mt-2 text-2xl font-black tracking-tight text-white">{questData?.questName ?? "Choose a learner path and generate a quest"}</h2>
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-on-surface-variant">
+                {questData ? "Inspect the generated code, run verification checks, answer the code-specific boss challenge, then record the badge." : "VibeQuest should adapt to builders, auditors, researchers, product leads, and community members instead of assuming everyone wants the same coding drill."}
+              </p>
+            </div>
+            <button
+              onClick={questData ? onOpenWorkbench : onOpenQuestRun}
+              className="rounded-xl bg-cyber-green px-5 py-3 text-sm font-black uppercase tracking-wider text-black transition-all hover:brightness-110"
+            >
+              {questData ? "Continue Quest" : "Start Quest"}
+            </button>
+          </div>
+          <div className="mt-6 grid gap-3 md:grid-cols-4">
+            {gates.map((gate) => (
+              <div key={gate.id} className={"rounded-lg border p-3 " + (gate.isCompleted ? "border-cyber-green/20 bg-cyber-green/5" : "border-glass-border bg-[#0B0C0E]/60")}>
+                <span className="font-mono text-[10px] uppercase text-on-surface-variant">{gate.name}</span>
+                <p className="mt-2 text-xs font-bold text-white">{gate.isCompleted ? "Complete" : "Pending"}</p>
+              </div>
+            ))}
+            <div className={"rounded-lg border p-3 " + (bossFightSolved ? "border-cyber-green/20 bg-cyber-green/5" : "border-glass-border bg-[#0B0C0E]/60")}>
+              <span className="font-mono text-[10px] uppercase text-on-surface-variant">Boss Challenge</span>
+              <p className="mt-2 text-xs font-bold text-white">{bossFightSolved ? "Solved" : "Pending"}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+          <MetricCard
+            icon={<Wallet className="h-5 w-5 text-electric-blue" />}
+            label="Wallet Proof"
+            value={walletBound ? "Bound" : "Missing"}
+            detail={walletBound ? walletLabel ?? "JoyID" : "Sign once to unlock quest generation"}
+            ready={walletBound}
+            actionLabel={walletBound ? "Manage" : "Connect"}
+            onAction={onConnectWallet}
+          />
+          <MetricCard
+            icon={<ShieldCheck className="h-5 w-5 text-cyber-green" />}
+            label="Gate Progress"
+            value={passedGates + "/" + gates.length}
+            detail={shipped ? "Proof envelope locked" : bossFightSolved ? "Boss solved" : "Complete gates to ship"}
+            ready={passedGates === gates.length && bossFightSolved}
+            actionLabel="Ship"
+            onAction={onOpenShipGate}
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
@@ -164,34 +187,7 @@ export default function DashboardView({
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-8 xl:grid-cols-[1fr_420px]">
-        <div className="rounded-xl border border-glass-border bg-[#16181D] p-5">
-          <div className="mb-4 flex items-center justify-between border-b border-glass-border pb-3">
-            <div className="flex items-center gap-2">
-              <Activity className="h-5 w-5 text-electric-blue" />
-              <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Activity Stream</h2>
-            </div>
-            <span className="font-mono text-xs text-on-surface-variant">{activities.length} events</span>
-          </div>
-
-          <div className="flex flex-col gap-3">
-            {activities.map((activity) => (
-              <div key={activity.id} className="grid grid-cols-[24px_1fr] gap-3 rounded-lg border border-glass-border/70 bg-[#0B0C0E]/70 p-4">
-                <div className="mt-0.5">
-                  {activity.ready ? <CheckCircle className="h-4 w-4 text-cyber-green" /> : <Clock className="h-4 w-4 text-warning-amber" />}
-                </div>
-                <div>
-                  <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                    <h3 className="text-sm font-bold text-white">{activity.title}</h3>
-                    <span className="font-mono text-[10px] uppercase text-on-surface-variant">{activity.time}</span>
-                  </div>
-                  <p className="mt-1 text-xs leading-relaxed text-on-surface-variant">{activity.description}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
+      <div className="grid grid-cols-1 gap-8 xl:grid-cols-[1fr_360px]">
         <div className="flex flex-col gap-6">
           <div className="rounded-xl border border-glass-border bg-[#16181D] p-5">
             <div className="mb-4 flex items-center justify-between border-b border-glass-border pb-3">
@@ -199,7 +195,7 @@ export default function DashboardView({
               <span className="font-mono text-xs text-on-surface-variant">{historyLoading ? "syncing" : questRuns.length}</span>
             </div>
             {historyError ? (
-              <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">
+              <div className="rounded-lg border border-warning-amber/30 bg-warning-amber/10 p-3 text-xs text-warning-amber">
                 {historyError}
               </div>
             ) : questRuns.length > 0 ? (
@@ -290,6 +286,27 @@ export default function DashboardView({
               </div>
             )}
           </div>
+          <div className="rounded-xl border border-glass-border bg-[#16181D] p-5">
+            <div className="mb-4 flex items-center justify-between border-b border-glass-border pb-3">
+              <div className="flex items-center gap-2">
+                <Activity className="h-5 w-5 text-electric-blue" />
+                <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">System Log</h2>
+              </div>
+              <span className="font-mono text-xs text-on-surface-variant">{activities.length}</span>
+            </div>
+            <div className="flex max-h-[340px] flex-col gap-2 overflow-y-auto pr-1">
+              {activities.map((activity) => (
+                <div key={activity.id} className="rounded-lg border border-glass-border/70 bg-[#0B0C0E]/70 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-xs font-bold text-white">{activity.title}</h3>
+                    {activity.ready ? <CheckCircle className="h-3.5 w-3.5 text-cyber-green" /> : <Clock className="h-3.5 w-3.5 text-warning-amber" />}
+                  </div>
+                  <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-on-surface-variant">{activity.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div className="rounded-xl border border-glass-border bg-[#16181D] p-5">
             <div className="mb-4 flex items-center justify-between border-b border-glass-border pb-3">
               <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Proof History</h2>
