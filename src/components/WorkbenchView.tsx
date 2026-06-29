@@ -758,7 +758,7 @@ export default function WorkbenchView({
                 </div>
                 {generationError && (
                   <p className="mt-3 rounded border border-warning-amber/25 bg-warning-amber/10 p-2 text-[10px] leading-relaxed text-warning-amber">
-                    Cloud save may be degraded. Your local learning record is kept; reward claiming needs backend persistence.
+                    Practice mode is saved locally. Reward claiming unlocks once cloud persistence is reachable.
                   </p>
                 )}
                 <button
