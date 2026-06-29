@@ -211,6 +211,62 @@ export type LearningTutorResponse = {
   references: LearningResourceDto[];
 };
 
+
+export type LearningTutorMessageDto = {
+  id: string;
+  role: "learner" | "mentor";
+  text: string;
+  why?: string | null;
+  follow_up?: string | null;
+  created_at: string;
+};
+
+export type LearningSessionRecord = {
+  module_id: string;
+  user_address: string;
+  source: "open-ai";
+  module: LearningModuleDto;
+  selected_interests: string[];
+  learner_goal: string;
+  background: string;
+  pace: string;
+  active_lesson_index: number;
+  checkpoint_answers: Record<string, number>;
+  tutor_messages: LearningTutorMessageDto[];
+  created_at: string;
+  updated_at: string;
+};
+
+export type LearningSessionResponse = {
+  session: LearningSessionRecord | null;
+};
+
+export type SaveLearningSessionRequest = {
+  wallet: WalletProof;
+  module_id?: string | null;
+  module: LearningModuleDto;
+  selected_interests: string[];
+  learner_goal: string;
+  background: string;
+  pace: string;
+  active_lesson_index: number;
+  checkpoint_answers: Record<string, number>;
+  tutor_messages: LearningTutorMessageDto[];
+};
+
+export type SaveTutorExchangeRequest = {
+  wallet: WalletProof;
+  module_title: string;
+  lesson_title: string;
+  lesson_context: string;
+  question: string;
+};
+
+export type SavedTutorExchangeResponse = {
+  answer: LearningTutorResponse;
+  session: LearningSessionRecord | null;
+};
+
 export type UserQuestHistoryResponse = {
   user: {
     address: string;
@@ -334,6 +390,61 @@ export async function askLearningTutor(
   }
 
   return response.json() as Promise<LearningTutorResponse>;
+}
+
+
+export async function getLearningSession(address: string): Promise<LearningSessionResponse> {
+  const response = await fetch(API_BASE_URL + "/users/" + encodeURIComponent(address) + "/learning", {
+    method: "GET",
+    headers: {
+      accept: "application/json",
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(await apiErrorMessage(response, "Learning session failed to load."));
+  }
+
+  return response.json() as Promise<LearningSessionResponse>;
+}
+
+export async function saveLearningSession(
+  address: string,
+  payload: SaveLearningSessionRequest,
+): Promise<LearningSessionRecord> {
+  const response = await fetch(API_BASE_URL + "/users/" + encodeURIComponent(address) + "/learning", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(await apiErrorMessage(response, "Learning session failed to save."));
+  }
+
+  return response.json() as Promise<LearningSessionRecord>;
+}
+
+export async function askAndSaveLearningTutor(
+  address: string,
+  payload: SaveTutorExchangeRequest,
+): Promise<SavedTutorExchangeResponse> {
+  const response = await fetch(API_BASE_URL + "/users/" + encodeURIComponent(address) + "/learning/tutor", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(await apiErrorMessage(response, "Learning tutor failed to answer."));
+  }
+
+  return response.json() as Promise<SavedTutorExchangeResponse>;
 }
 
 export async function getUserQuestHistory(address: string): Promise<UserQuestHistoryResponse> {

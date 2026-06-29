@@ -22,12 +22,14 @@ type TutorMessage = {
   text: string;
   why?: string;
   followUp?: string;
+  createdAt?: string;
 };
 
 interface LearningModeViewProps {
   module: LearningModuleDto | null;
   generating: boolean;
   tutorLoading: boolean;
+  syncState: "idle" | "loading" | "saving" | "saved" | "local-only";
   error: string | null;
   selectedInterests: string[];
   setSelectedInterests: (interests: string[]) => void;
@@ -66,6 +68,7 @@ export default function LearningModeView({
   module,
   generating,
   tutorLoading,
+  syncState,
   error,
   selectedInterests,
   setSelectedInterests,
@@ -110,15 +113,17 @@ export default function LearningModeView({
     const response = await onAskTutor();
     if (!response || !tutorQuestion.trim()) return;
 
+    const createdAt = new Date().toISOString();
     setTutorMessages([
       ...tutorMessages,
-      { id: `learner-${Date.now()}`, role: "learner", text: tutorQuestion.trim() },
+      { id: `learner-${Date.now()}`, role: "learner", text: tutorQuestion.trim(), createdAt },
       {
         id: `mentor-${Date.now()}`,
         role: "mentor",
         text: response.answer,
         why: response.why_it_matters,
         followUp: response.follow_up_question,
+        createdAt,
       },
     ]);
     setTutorQuestion("");
@@ -137,9 +142,15 @@ export default function LearningModeView({
           </p>
         </div>
         {module ? (
-          <div className="rounded-xl border border-cyber-green/25 bg-cyber-green/5 px-5 py-3">
-            <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-cyber-green">Module progress</span>
-            <p className="mt-1 text-xl font-black text-white">{progress}%</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-xl border border-cyber-green/25 bg-cyber-green/5 px-5 py-3">
+              <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-cyber-green">Module progress</span>
+              <p className="mt-1 text-xl font-black text-white">{progress}%</p>
+            </div>
+            <div className="rounded-xl border border-electric-blue/25 bg-electric-blue/5 px-5 py-3">
+              <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-electric-blue">Cloud sync</span>
+              <p className="mt-1 text-sm font-black uppercase text-white">{syncStateLabel(syncState)}</p>
+            </div>
           </div>
         ) : null}
       </div>
@@ -384,3 +395,11 @@ export default function LearningModeView({
 }
 
 export type { TutorMessage };
+
+function syncStateLabel(value: "idle" | "loading" | "saving" | "saved" | "local-only") {
+  if (value === "loading") return "loading";
+  if (value === "saving") return "saving";
+  if (value === "saved") return "saved";
+  if (value === "local-only") return "local only";
+  return "ready";
+}

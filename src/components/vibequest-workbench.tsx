@@ -1,7 +1,7 @@
 "use client";
 
 import { ccc, useCcc, useSigner } from "@ckb-ccc/connector-react";
-import { useCallback, useEffect, useMemo, useState, type SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from "react";
 
 import DashboardView from "@/components/DashboardView";
 import LandingPage from "@/components/LandingPage";
@@ -12,17 +12,22 @@ import ShipGateView from "@/components/ShipGateView";
 import WalletConnectModal from "@/components/WalletConnectModal";
 import WorkbenchView from "@/components/WorkbenchView";
 import {
+  askAndSaveLearningTutor,
   askLearningTutor,
   completeQuest,
   generateLearningModule,
   generateQuest,
   getHealth,
+  getLearningSession,
   getUserQuestHistory,
+  saveLearningSession,
   updateQuestProgress,
   type Difficulty,
   type GenerateQuestResponse,
   type HealthResponse,
   type LearningModuleDto,
+  type LearningSessionRecord,
+  type LearningTutorMessageDto,
   type QuestRunRecord,
   type RewardClaimRecord,
   type UserQuestCounts,
@@ -134,6 +139,9 @@ export function VibeQuestWorkbench() {
   const [tutorQuestion, setTutorQuestion] = useState("");
   const [tutorMessages, setTutorMessages] = useState<TutorMessage[]>([]);
   const [tutorLoading, setTutorLoading] = useState(false);
+  const [learningModuleId, setLearningModuleId] = useState<string | null>(null);
+  const [learningSyncState, setLearningSyncState] = useState<"idle" | "loading" | "saving" | "saved" | "local-only">("idle");
+  const lastSavedLearningSnapshotRef = useRef<string | null>(null);
 
   const generationBackendReady = Boolean(
     health?.integrations.openai &&
@@ -164,6 +172,7 @@ export function VibeQuestWorkbench() {
 
     if (restoredLearningSession) {
       setLearningModule(restoredLearningSession.module);
+      setLearningModuleId(restoredLearningSession.moduleId ?? null);
       setSelectedInterests(restoredLearningSession.selectedInterests);
       setLearnerGoal(restoredLearningSession.learnerGoal);
       setLearnerBackground(restoredLearningSession.background);
@@ -295,6 +304,7 @@ export function VibeQuestWorkbench() {
     window.localStorage.setItem(
       STORAGE_KEYS.learningSession,
       JSON.stringify({
+        moduleId: learningModuleId,
         module: learningModule,
         selectedInterests,
         learnerGoal,
@@ -306,7 +316,47 @@ export function VibeQuestWorkbench() {
         updatedAt: new Date().toISOString(),
       }),
     );
-  }, [activeLessonIndex, checkpointAnswers, learnerBackground, learnerGoal, learningModule, learningPace, selectedInterests, sessionReady, tutorMessages]);
+  }, [activeLessonIndex, checkpointAnswers, learnerBackground, learnerGoal, learningModule, learningModuleId, learningPace, selectedInterests, sessionReady, tutorMessages]);
+
+  useEffect(() => {
+    if (!sessionReady || !walletProof || !learningModule || learningSyncState === "loading") {
+      return;
+    }
+
+    const payload = {
+      wallet: walletProof,
+      module_id: learningModuleId,
+      module: learningModule,
+      selected_interests: selectedInterests,
+      learner_goal: learnerGoal,
+      background: learnerBackground,
+      pace: learningPace,
+      active_lesson_index: activeLessonIndex,
+      checkpoint_answers: checkpointAnswers,
+      tutor_messages: tutorMessages.map(mapTutorMessageDto),
+    };
+    const snapshot = JSON.stringify(payload);
+    if (snapshot === lastSavedLearningSnapshotRef.current) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      lastSavedLearningSnapshotRef.current = snapshot;
+      setLearningSyncState("saving");
+      void saveLearningSession(walletProof.address, payload)
+        .then((session) => {
+          setLearningModuleId(session.module_id);
+          setLearningSyncState("saved");
+          setLearningError(null);
+        })
+        .catch((error) => {
+          setLearningSyncState("local-only");
+          setLearningError(error instanceof Error ? normalizeHistoryError(error.message) : "Learning progress is saved locally for now.");
+        });
+    }, 900);
+
+    return () => window.clearTimeout(timeout);
+  }, [activeLessonIndex, checkpointAnswers, learnerBackground, learnerGoal, learningModule, learningModuleId, learningPace, learningSyncState, selectedInterests, sessionReady, tutorMessages, walletProof]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -494,6 +544,47 @@ export function VibeQuestWorkbench() {
     setActiveTab("quest-run");
   }, []);
 
+  const applyLearningSession = useCallback((session: LearningSessionRecord) => {
+    setLearningModuleId(session.module_id);
+    setLearningModule(session.module);
+    setSelectedInterests(session.selected_interests);
+    setLearnerGoal(session.learner_goal);
+    setLearnerBackground(session.background);
+    setLearningPace(session.pace);
+    setActiveLessonIndex(session.active_lesson_index);
+    setCheckpointAnswers(session.checkpoint_answers);
+    const tutorMessages = session.tutor_messages.map(mapTutorMessage);
+    setTutorMessages(tutorMessages);
+    lastSavedLearningSnapshotRef.current = JSON.stringify({
+      wallet: walletProof,
+      module_id: session.module_id,
+      module: session.module,
+      selected_interests: session.selected_interests,
+      learner_goal: session.learner_goal,
+      background: session.background,
+      pace: session.pace,
+      active_lesson_index: session.active_lesson_index,
+      checkpoint_answers: session.checkpoint_answers,
+      tutor_messages: tutorMessages.map(mapTutorMessageDto),
+    });
+    setLearningSyncState("saved");
+  }, [walletProof]);
+
+  const loadLearningSession = useCallback(async (address: string) => {
+    setLearningSyncState("loading");
+    try {
+      const response = await getLearningSession(address);
+      if (response.session) {
+        applyLearningSession(response.session);
+      } else {
+        setLearningSyncState("idle");
+      }
+    } catch (error) {
+      setLearningSyncState("local-only");
+      setLearningError(error instanceof Error ? normalizeHistoryError(error.message) : "Learning session is local-only for now.");
+    }
+  }, [applyLearningSession]);
+
   const loadQuestHistory = useCallback(
     async (address: string, preferredRunId?: string) => {
       setHistoryLoading(true);
@@ -528,7 +619,8 @@ export function VibeQuestWorkbench() {
     }
 
     void loadQuestHistory(walletProof.address);
-  }, [loadQuestHistory, walletProof?.address]);
+    void loadLearningSession(walletProof.address);
+  }, [loadLearningSession, loadQuestHistory, walletProof?.address]);
 
   const persistCurrentProgress = useCallback(
     async (next: { gates?: VerificationGate[]; bossFightSolved?: boolean }) => {
@@ -634,10 +726,12 @@ export function VibeQuestWorkbench() {
     setQuestStats({ created: 0, completed: 0, uncompleted: 0 });
     setHistoryError(null);
     setShipError(null);
+    setLearningModuleId(null);
+    setLearningSyncState(learningModule ? "local-only" : "idle");
     if (typeof window !== "undefined") {
       window.localStorage.removeItem(STORAGE_KEYS.activeQuestSession);
     }
-  }, []);
+  }, [learningModule]);
 
   const handleGenerateQuest = useCallback(
     async (request: string, track: string, rawDifficulty: string) => {
@@ -770,13 +864,15 @@ export function VibeQuestWorkbench() {
         background: learnerBackground,
         pace: learningPace,
       });
+      setLearningModuleId(response.module_id);
       setLearningModule(response.module);
+      setLearningSyncState(walletProof ? "saving" : "local-only");
     } catch (error) {
       setLearningError(error instanceof Error ? error.message : "Learning module generation failed.");
     } finally {
       setLearningGenerating(false);
     }
-  }, [learnerBackground, learnerGoal, learningPace, selectedInterests]);
+  }, [learnerBackground, learnerGoal, learningPace, selectedInterests, walletProof]);
 
   const handleAskLearningTutor = useCallback(async () => {
     const lesson = learningModule?.lessons[activeLessonIndex];
@@ -784,22 +880,36 @@ export function VibeQuestWorkbench() {
       return null;
     }
 
+    const payload = {
+      module_title: learningModule.title,
+      lesson_title: lesson.title,
+      lesson_context: `${lesson.why_it_matters}\n${lesson.explanation}\nCheckpoint: ${lesson.checkpoint.question}`,
+      question: tutorQuestion,
+    };
+
     setTutorLoading(true);
     setLearningError(null);
     try {
-      return await askLearningTutor({
-        module_title: learningModule.title,
-        lesson_title: lesson.title,
-        lesson_context: `${lesson.why_it_matters}\n${lesson.explanation}\nCheckpoint: ${lesson.checkpoint.question}`,
-        question: tutorQuestion,
-      });
+      if (walletProof) {
+        const response = await askAndSaveLearningTutor(walletProof.address, {
+          wallet: walletProof,
+          ...payload,
+        });
+        if (response.session) {
+          applyLearningSession(response.session);
+        }
+        return response.answer;
+      }
+
+      setLearningSyncState("local-only");
+      return await askLearningTutor(payload);
     } catch (error) {
       setLearningError(error instanceof Error ? error.message : "Learning tutor failed to answer.");
       return null;
     } finally {
       setTutorLoading(false);
     }
-  }, [activeLessonIndex, learningModule, tutorQuestion]);
+  }, [activeLessonIndex, applyLearningSession, learningModule, tutorQuestion, walletProof]);
 
   const handleStartLessonQuest = useCallback((prompt: string) => {
     const lesson = learningModule?.lessons[activeLessonIndex];
@@ -863,6 +973,7 @@ export function VibeQuestWorkbench() {
             module={learningModule}
             generating={learningGenerating}
             tutorLoading={tutorLoading}
+            syncState={learningSyncState}
             error={learningError}
             selectedInterests={selectedInterests}
             setSelectedInterests={setSelectedInterests}
@@ -1095,6 +1206,7 @@ function parsePracticeRecords(value: string | null): PracticeRecord[] {
 }
 
 type LearningSession = {
+  moduleId?: string | null;
   module: LearningModuleDto;
   selectedInterests: string[];
   learnerGoal: string;
@@ -1502,6 +1614,36 @@ function insertAt<T>(items: T[], item: T, index: number) {
 function stableChoiceIndex(...parts: string[]) {
   const total = parts.join(":").split("").reduce((sum, character) => sum + character.charCodeAt(0), 0);
   return total % 4;
+}
+
+function mapTutorMessage(message: LearningTutorMessageDto): TutorMessage {
+  return {
+    id: message.id,
+    role: message.role,
+    text: message.text,
+    why: message.why ?? undefined,
+    followUp: message.follow_up ?? undefined,
+  };
+}
+
+function mapTutorMessageDto(message: TutorMessage): LearningTutorMessageDto {
+  return {
+    id: message.id,
+    role: message.role,
+    text: message.text,
+    why: message.why ?? null,
+    follow_up: message.followUp ?? null,
+    created_at: message.createdAt ?? stableTutorTimestamp(message.id),
+  };
+}
+
+function stableTutorTimestamp(id: string) {
+  const match = id.match(/(\d{10,})/);
+  const timestamp = match ? Number(match[1]) : 0;
+
+  return Number.isFinite(timestamp) && timestamp > 0
+    ? new Date(timestamp).toISOString()
+    : new Date(0).toISOString();
 }
 
 function shortAddress(address: string) {
