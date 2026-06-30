@@ -298,6 +298,7 @@ export type LearningSessionResponse = {
 export type SaveLearningSessionRequest = {
   wallet: WalletProof;
   module_id?: string | null;
+  source?: QuestSource | null;
   module: LearningModuleDto;
   selected_interests: string[];
   learner_goal: string;

@@ -137,6 +137,7 @@ export function VibeQuestWorkbench() {
   const [learningGenerating, setLearningGenerating] = useState(false);
   const [learningError, setLearningError] = useState<string | null>(null);
   const [learningWarning, setLearningWarning] = useState<string | null>(null);
+  const [learningSource, setLearningSource] = useState<"open-ai" | "core-fallback">("open-ai");
   const [selectedInterests, setSelectedInterests] = useState<string[]>(["CKB Foundations", "Fiber Payments"]);
   const [learnerGoal, setLearnerGoal] = useState("Teach me CKB/Fiber well enough to understand generated code, explain the trust boundary, and complete practical quests.");
   const [learnerBackground, setLearnerBackground] = useState("Vibecoder");
@@ -181,6 +182,8 @@ export function VibeQuestWorkbench() {
     if (restoredLearningSession) {
       setLearningModule(restoredLearningSession.module);
       setLearningModuleId(restoredLearningSession.moduleId ?? null);
+      setLearningSource(restoredLearningSession.source);
+      setLearningWarning(restoredLearningSession.source === "core-fallback" ? "Structured learning path restored from this browser." : null);
       setSelectedInterests(restoredLearningSession.selectedInterests);
       setLearnerGoal(restoredLearningSession.learnerGoal);
       setLearnerBackground(restoredLearningSession.background);
@@ -313,6 +316,7 @@ export function VibeQuestWorkbench() {
       STORAGE_KEYS.learningSession,
       JSON.stringify({
         moduleId: learningModuleId,
+        source: learningSource,
         module: learningModule,
         selectedInterests,
         learnerGoal,
@@ -324,7 +328,7 @@ export function VibeQuestWorkbench() {
         updatedAt: new Date().toISOString(),
       }),
     );
-  }, [activeLessonIndex, checkpointAnswers, learnerBackground, learnerGoal, learningModule, learningModuleId, learningPace, selectedInterests, sessionReady, tutorMessages]);
+  }, [activeLessonIndex, checkpointAnswers, learnerBackground, learnerGoal, learningModule, learningModuleId, learningPace, learningSource, selectedInterests, sessionReady, tutorMessages]);
 
   useEffect(() => {
     if (!sessionReady || !walletProof || !learningModule || learningSyncState === "loading") {
@@ -334,6 +338,7 @@ export function VibeQuestWorkbench() {
     const payload = {
       wallet: walletProof,
       module_id: learningModuleId,
+      source: learningSource,
       module: learningModule,
       selected_interests: selectedInterests,
       learner_goal: learnerGoal,
@@ -364,7 +369,7 @@ export function VibeQuestWorkbench() {
     }, 900);
 
     return () => window.clearTimeout(timeout);
-  }, [activeLessonIndex, checkpointAnswers, learnerBackground, learnerGoal, learningModule, learningModuleId, learningPace, learningSyncState, selectedInterests, sessionReady, tutorMessages, walletProof]);
+  }, [activeLessonIndex, checkpointAnswers, learnerBackground, learnerGoal, learningModule, learningModuleId, learningPace, learningSource, learningSyncState, selectedInterests, sessionReady, tutorMessages, walletProof]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -568,6 +573,7 @@ export function VibeQuestWorkbench() {
     lastSavedLearningSnapshotRef.current = JSON.stringify({
       wallet: walletProof,
       module_id: session.module_id,
+      source: session.source,
       module: session.module,
       selected_interests: session.selected_interests,
       learner_goal: session.learner_goal,
@@ -577,6 +583,8 @@ export function VibeQuestWorkbench() {
       checkpoint_answers: session.checkpoint_answers,
       tutor_messages: tutorMessages.map(mapTutorMessageDto),
     });
+    setLearningSource(session.source);
+    setLearningWarning(session.source === "core-fallback" ? "Structured learning path restored from your saved session." : null);
     setLearningSyncState("saved");
   }, [walletProof]);
 
@@ -897,6 +905,7 @@ export function VibeQuestWorkbench() {
       });
       setLearningModuleId(response.module_id);
       setLearningModule(response.module);
+      setLearningSource(response.source);
       setLearningWarning(response.warning ?? (response.source === "core-fallback" ? "Structured learning path loaded while live AI lessons recover." : null));
       setLearningSyncState(walletProof ? "saving" : "local-only");
     } catch (error) {
@@ -1375,6 +1384,7 @@ function parsePracticeRecords(value: string | null): PracticeRecord[] {
 
 type LearningSession = {
   moduleId?: string | null;
+  source: "open-ai" | "core-fallback";
   module: LearningModuleDto;
   selectedInterests: string[];
   learnerGoal: string;
@@ -1385,6 +1395,11 @@ type LearningSession = {
   tutorMessages: TutorMessage[];
   updatedAt: string;
 };
+
+
+function parseQuestSource(value: unknown): "open-ai" | "core-fallback" {
+  return value === "core-fallback" ? "core-fallback" : "open-ai";
+}
 
 function parseLearningSession(value: string | null): LearningSession | null {
   if (!value) {
@@ -1406,7 +1421,7 @@ function parseLearningSession(value: string | null): LearningSession | null {
       parsed.tutorMessages.every(isTutorMessage) &&
       typeof parsed.updatedAt === "string"
     ) {
-      return parsed;
+      return { ...parsed, source: parseQuestSource(parsed.source) };
     }
   } catch {
     return null;
