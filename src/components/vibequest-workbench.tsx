@@ -362,9 +362,8 @@ export function VibeQuestWorkbench() {
           setLearningSyncState("saved");
           setLearningError(null);
         })
-        .catch((error) => {
+        .catch(() => {
           setLearningSyncState("local-only");
-          setLearningError(error instanceof Error ? normalizeHistoryError(error.message) : "Learning progress is saved locally for now.");
         });
     }, 900);
 
@@ -596,10 +595,10 @@ export function VibeQuestWorkbench() {
         applyLearningSession(response.session);
       } else {
         setLearningSyncState("idle");
+        setLearningError(null);
       }
-    } catch (error) {
+    } catch {
       setLearningSyncState("local-only");
-      setLearningError(error instanceof Error ? normalizeHistoryError(error.message) : "Learning session is local-only for now.");
     }
   }, [applyLearningSession]);
 
@@ -612,6 +611,7 @@ export function VibeQuestWorkbench() {
         setQuestRuns(history.runs);
         setRewardClaims(history.reward_claims ?? []);
         setQuestStats(history.stats);
+        setHistoryError(null);
         setHistoryPersistenceMessage(
           history.persistence?.available === false
             ? history.persistence.message ?? "Cloud quest history is syncing. Continue from local learning records for now."
@@ -906,8 +906,10 @@ export function VibeQuestWorkbench() {
       setLearningModuleId(response.module_id);
       setLearningModule(response.module);
       setLearningSource(response.source);
+      setLearningError(null);
       setLearningWarning(response.warning ?? (response.source === "core-fallback" ? "Structured learning path loaded while live AI lessons recover." : null));
       setLearningSyncState(walletProof ? "saving" : "local-only");
+      setHistoryError(null);
     } catch (error) {
       setLearningError(error instanceof Error ? error.message : "Learning module generation failed.");
     } finally {
