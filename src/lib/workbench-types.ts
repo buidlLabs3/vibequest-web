@@ -1,4 +1,4 @@
-import type { LearningQuestLink } from "@/lib/api";
+import type { BossAttemptRecord, LearningQuestLink } from "@/lib/api";
 
 export interface WorkbenchFile {
   name: string;
@@ -46,6 +46,7 @@ export interface QuestData {
   files: WorkbenchFile[];
   gates: VerificationGate[];
   bossFight: BossFight;
+  bossAttempts?: BossAttemptRecord[];
 }
 
 export interface ProofLog {

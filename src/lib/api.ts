@@ -6,9 +6,28 @@ export type QuestBlueprint = {
   build_objective: string;
   comprehension_gates: string[];
   boss_fight: string;
+  challenge_brief?: QuestChallengeBrief | null;
   reward_logic: string;
   ckb_fiber_hooks: string[];
   workbench_files: WorkbenchFile[];
+};
+
+export type QuestChallengeBrief = {
+  question: string;
+  correct_answer: string;
+  wrong_answers: ChallengeWrongAnswer[];
+  invariant: string;
+  attack_scenario: string;
+  code_focus: string;
+  test_focus: string;
+  hint: string;
+  follow_up_question: string;
+  resources: LearningResourceDto[];
+};
+
+export type ChallengeWrongAnswer = {
+  label: string;
+  feedback: string;
 };
 
 export type WorkbenchFile = {
@@ -142,6 +161,7 @@ export type QuestRunRecord = {
   quest: QuestBlueprint;
   ship_requirements: ShipRequirements;
   progress: QuestProgress;
+  boss_attempts: BossAttemptRecord[];
   status: QuestRunStatus;
   reward: RewardSnapshot;
   created_at: string;
@@ -292,10 +312,28 @@ export type UserQuestHistoryResponse = {
   reward_claims: RewardClaimRecord[];
 };
 
+export type BossAttemptRecord = {
+  selected_index: number;
+  selected_label: string;
+  correct: boolean;
+  feedback: string;
+  follow_up_question: string;
+  created_at: string;
+};
+
+export type BossAttemptRequest = {
+  selected_index: number;
+  selected_label: string;
+  correct: boolean;
+  feedback: string;
+  follow_up_question: string;
+};
+
 export type UpdateQuestProgressRequest = {
   wallet: WalletProof;
   gates?: StoredGateProgress[];
   boss_fight_solved?: boolean;
+  boss_attempt?: BossAttemptRequest;
   shipped?: boolean;
 };
 

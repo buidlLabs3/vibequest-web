@@ -1,4 +1,5 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import type { BossAttemptRequest } from "@/lib/api";
 import { 
   Play, 
   Terminal as TermIcon, 
@@ -137,10 +138,10 @@ interface WorkbenchViewProps {
   gates: VerificationGate[];
   setGates: Dispatch<SetStateAction<VerificationGate[]>>;
   bossFightSolved: boolean;
-  setBossFightSolved: (solved: boolean) => void;
   shipped: boolean;
   onShip: () => void;
   onChallengeComplete: () => void;
+  onBossAttempt: (attempt: BossAttemptRequest, solved: boolean) => void;
   onWorkspaceVerified: () => void;
   ckbRpcOnline: boolean;
   generationError?: string | null;
@@ -189,10 +190,10 @@ export default function WorkbenchView({
   gates,
   setGates,
   bossFightSolved,
-  setBossFightSolved,
   shipped,
   onShip,
   onChallengeComplete,
+  onBossAttempt,
   onWorkspaceVerified,
   ckbRpcOnline,
   generationError,
@@ -278,11 +279,26 @@ export default function WorkbenchView({
     }, 360);
   };
   const handleBossSubmit = () => {
-    if (!questData) return;
+    if (!questData || bossAnswer === null) return;
+    const selectedOption = questData.bossFight.options[bossAnswer];
+    if (!selectedOption) return;
+
     const correctIndex = questData.bossFight.correctAnswerIndex;
-    if (bossAnswer === correctIndex) {
+    const solved = bossAnswer === correctIndex;
+    const attempt: BossAttemptRequest = {
+      selected_index: bossAnswer,
+      selected_label: selectedOption.label,
+      correct: solved,
+      feedback: selectedOption.rationale,
+      follow_up_question: solved
+        ? questData.bossFight.insight
+        : `Re-open ${questData.bossFight.title} and explain why this answer misses the invariant before trying again.`,
+    };
+
+    onBossAttempt(attempt, solved);
+
+    if (solved) {
       setBossFeedback("SUCCESS");
-      setBossFightSolved(true);
       onChallengeComplete();
     } else {
       setBossFeedback("FAIL");
@@ -840,6 +856,26 @@ export default function WorkbenchView({
                   <p className="leading-relaxed text-red-200/80">{questData.bossFight.insight}</p>
                 </div>
               )}
+
+              {questData.bossAttempts?.length ? (
+                <div className="rounded-lg border border-red-900/20 bg-[#120D0E] p-3">
+                  <h3 className="font-mono text-[10px] font-bold uppercase tracking-wider text-red-300">Previous Attempts</h3>
+                  <div className="mt-2 space-y-2">
+                    {questData.bossAttempts.slice(-3).map((attempt, index) => (
+                      <div key={`${attempt.created_at}-${index}`} className="rounded border border-red-900/20 bg-black/20 p-2 text-[11px] leading-relaxed text-gray-300">
+                        <div className="flex items-center justify-between gap-3 font-mono uppercase">
+                          <span className={attempt.correct ? "text-cyber-green" : "text-red-300"}>
+                            {attempt.correct ? "Solved" : "Needs Review"}
+                          </span>
+                          <span className="text-gray-500">{new Date(attempt.created_at).toLocaleString()}</span>
+                        </div>
+                        <p className="mt-1 text-white">{attempt.selected_label}</p>
+                        <p className="mt-1 text-gray-400">{attempt.feedback}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
 

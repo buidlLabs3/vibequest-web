@@ -22,6 +22,8 @@ import {
   getUserQuestHistory,
   saveLearningSession,
   updateQuestProgress,
+  type BossAttemptRecord,
+  type BossAttemptRequest,
   type Difficulty,
   type GenerateQuestResponse,
   type HealthResponse,
@@ -627,7 +629,7 @@ export function VibeQuestWorkbench() {
   }, [loadLearningSession, loadQuestHistory, walletProof?.address]);
 
   const persistCurrentProgress = useCallback(
-    async (next: { gates?: VerificationGate[]; bossFightSolved?: boolean }) => {
+    async (next: { gates?: VerificationGate[]; bossFightSolved?: boolean; bossAttempt?: BossAttemptRequest }) => {
       if (!walletProof || !questData?.runId) {
         return;
       }
@@ -642,6 +644,7 @@ export function VibeQuestWorkbench() {
             is_completed: gate.isCompleted,
           })),
           boss_fight_solved: next.bossFightSolved ?? bossFightSolved,
+          boss_attempt: next.bossAttempt,
         });
         void loadQuestHistory(walletProof.address, updated.run_id);
       } catch (error) {
@@ -663,16 +666,26 @@ export function VibeQuestWorkbench() {
     [persistCurrentProgress],
   );
 
-  const handleSetBossFightSolved = useCallback(
-    (next: SetStateAction<boolean>) => {
-      setBossFightSolved((previous) => {
-        const resolved = typeof next === "function" ? next(previous) : next;
-        void persistCurrentProgress({ bossFightSolved: resolved });
-        return resolved;
-      });
-    },
-    [persistCurrentProgress],
-  );
+  const handleBossAttempt = useCallback((attempt: BossAttemptRequest, solved: boolean) => {
+    setQuestData((previous) => {
+      if (!previous) {
+        return previous;
+      }
+
+      const attemptRecord: BossAttemptRecord = {
+        ...attempt,
+        created_at: new Date().toISOString(),
+      };
+
+      return {
+        ...previous,
+        bossAttempts: [...(previous.bossAttempts ?? []), attemptRecord].slice(-20),
+      };
+    });
+
+    void persistCurrentProgress({ bossFightSolved: solved || bossFightSolved, bossAttempt: attempt });
+  }, [bossFightSolved, persistCurrentProgress]);
+
 
   const bindWalletProof = useCallback(async () => {
     if (!signer) {
@@ -1064,10 +1077,10 @@ export function VibeQuestWorkbench() {
             gates={gates}
             setGates={handleSetGates}
             bossFightSolved={bossFightSolved}
-            setBossFightSolved={handleSetBossFightSolved}
             shipped={shipped}
             onShip={() => setActiveTab("ship-gate")}
             onChallengeComplete={() => markCurrentPracticeRecord("completed")}
+            onBossAttempt={handleBossAttempt}
             onWorkspaceVerified={() => markCurrentPracticeRecord("verified")}
             ckbRpcOnline={generationBackendReady}
             generationError={generationError}
@@ -1444,7 +1457,7 @@ function normalizeDifficulty(value: string): Difficulty {
   return "builder";
 }
 
-function mapQuestResponse(response: GenerateQuestResponse): QuestData {
+function mapQuestResponse(response: GenerateQuestResponse, bossAttempts: BossAttemptRecord[] = []): QuestData {
   const files = response.quest.workbench_files.map((file) => ({
     name: file.path.split("/").pop() ?? file.path,
     path: file.path,
@@ -1466,6 +1479,7 @@ function mapQuestResponse(response: GenerateQuestResponse): QuestData {
       isCompleted: false,
     })),
     bossFight: buildBossFight(response),
+    bossAttempts,
   };
 }
 
@@ -1482,7 +1496,8 @@ function mapQuestRunRecord(run: QuestRunRecord): QuestData {
     },
     quest: run.quest,
     ship_requirements: run.ship_requirements,
-  });
+    persistence: { saved: true, warning: null },
+  }, run.boss_attempts ?? []);
 }
 
 type CodeInsights = {
@@ -1501,6 +1516,32 @@ type CodeInsights = {
 function buildBossFight(response: GenerateQuestResponse): BossFight {
   const questData = mapQuestBlueprintForAnalysis(response);
   const insights = analyzeQuestCode(questData);
+  const brief = response.quest.challenge_brief;
+
+  if (brief && brief.correct_answer && brief.wrong_answers?.length) {
+    const correctIndex = stableChoiceIndex(response.run_id, response.quest.title, brief.invariant || brief.correct_answer);
+    const correct = {
+      label: brief.correct_answer,
+      rationale: `Correct. ${brief.invariant} Focus: ${brief.code_focus} Test: ${brief.test_focus}`,
+    };
+    const distractors = brief.wrong_answers.slice(0, 3).map((answer) => ({
+      label: answer.label,
+      rationale: answer.feedback,
+    }));
+
+    return {
+      title: response.quest.title,
+      challenge: `${response.quest.boss_fight} ${brief.attack_scenario}`.trim(),
+      question: brief.question,
+      options: insertAt(distractors, correct, correctIndex),
+      correctAnswerIndex: correctIndex,
+      hint: brief.hint,
+      victoryMessage: `You defended the generated code invariant: ${brief.invariant}`,
+      insight: `${brief.follow_up_question} Code focus: ${brief.code_focus}. Test focus: ${brief.test_focus}.`,
+      resources: mergeResources(brief.resources ?? [], insights.resources),
+    };
+  }
+
   const correctIndex = stableChoiceIndex(response.run_id, response.quest.title, insights.riskFocus);
   const correct = {
     label: `Defend ${insights.riskFocus} by proving ${insights.primaryInvariant.toLowerCase()}`,
@@ -1533,6 +1574,19 @@ function buildBossFight(response: GenerateQuestResponse): BossFight {
     insight: `Focus on ${insights.vulnerableLine}. That is where a vibecoder can accidentally trust a string, receipt, witness, channel state, or payout split without binding it to the action being authorized.`,
     resources: insights.resources,
   };
+}
+
+function mergeResources(primary: LearningResource[], fallback: LearningResource[]) {
+  const seen = new Set<string>();
+  return [...primary, ...fallback]
+    .filter((resource) => {
+      if (!resource.url || seen.has(resource.url)) {
+        return false;
+      }
+      seen.add(resource.url);
+      return true;
+    })
+    .slice(0, 3);
 }
 
 function mapQuestBlueprintForAnalysis(response: GenerateQuestResponse): QuestData {
