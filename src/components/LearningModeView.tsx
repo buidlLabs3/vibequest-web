@@ -93,6 +93,13 @@ export default function LearningModeView({
   canStartLessonQuest,
 }: LearningModeViewProps) {
   const activeLesson = module?.lessons[activeLessonIndex] ?? null;
+  const selectedCheckpointAnswer = activeLesson ? checkpointAnswers[activeLesson.id] : undefined;
+  const checkpointAnswered = selectedCheckpointAnswer !== undefined;
+  const checkpointPassed = Boolean(
+    activeLesson && selectedCheckpointAnswer === activeLesson.checkpoint.correct_index,
+  );
+  const nextLessonIndex = module ? Math.min(activeLessonIndex + 1, module.lessons.length - 1) : 0;
+  const previousLessonIndex = Math.max(activeLessonIndex - 1, 0);
   const completedLessons = useMemo(() => {
     if (!module) return 0;
     return module.lessons.filter((lesson) => checkpointAnswers[lesson.id] === lesson.checkpoint.correct_index).length;
@@ -144,7 +151,7 @@ export default function LearningModeView({
           </p>
         </div>
         {module ? (
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-xl border border-cyber-green/25 bg-cyber-green/5 px-5 py-3">
               <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-cyber-green">Module progress</span>
               <p className="mt-1 text-xl font-black text-white">{progress}%</p>
@@ -152,6 +159,10 @@ export default function LearningModeView({
             <div className="rounded-xl border border-electric-blue/25 bg-electric-blue/5 px-5 py-3">
               <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-electric-blue">Cloud sync</span>
               <p className="mt-1 text-sm font-black uppercase text-white">{syncStateLabel(syncState)}</p>
+            </div>
+            <div className="rounded-xl border border-warning-amber/25 bg-warning-amber/5 px-5 py-3">
+              <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-warning-amber">Next action</span>
+              <p className="mt-1 text-sm font-black uppercase text-white">{checkpointPassed ? "practice quest" : checkpointAnswered ? "review answer" : "pass checkpoint"}</p>
             </div>
           </div>
         ) : null}
@@ -232,16 +243,18 @@ export default function LearningModeView({
               <div className="flex flex-col gap-2">
                 {module.lessons.map((lesson, index) => {
                   const selected = index === activeLessonIndex;
-                  const completed = checkpointAnswers[lesson.id] === lesson.checkpoint.correct_index;
+                  const answer = checkpointAnswers[lesson.id];
+                  const completed = answer === lesson.checkpoint.correct_index;
+                  const attempted = answer !== undefined && !completed;
                   return (
                     <button
                       key={lesson.id}
                       onClick={() => setActiveLessonIndex(index)}
-                      className={`rounded-lg border p-3 text-left transition-colors ${selected ? "border-electric-blue/50 bg-electric-blue/10" : "border-glass-border/70 bg-[#0B0C0E]/70 hover:border-electric-blue/30"}`}
+                      className={`rounded-lg border p-3 text-left transition-colors ${selected ? "border-electric-blue/50 bg-electric-blue/10" : completed ? "border-cyber-green/25 bg-cyber-green/5" : attempted ? "border-warning-amber/25 bg-warning-amber/5" : "border-glass-border/70 bg-[#0B0C0E]/70 hover:border-electric-blue/30"}`}
                     >
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-xs font-bold text-white">{index + 1}. {lesson.title}</span>
-                        {completed ? <CheckCircle className="h-4 w-4 text-cyber-green" /> : null}
+                        <span className="font-mono text-[10px] uppercase text-on-surface-variant">{completed ? "passed" : attempted ? "review" : selected ? "active" : "locked-in"}</span>
                       </div>
                       <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-on-surface-variant">{lesson.why_it_matters}</p>
                     </button>
@@ -255,6 +268,22 @@ export default function LearningModeView({
         <main className="flex flex-col gap-6">
           {module && activeLesson ? (
             <>
+              <section className="rounded-xl border border-glass-border bg-[#16181D] p-4">
+                <div className="grid gap-3 md:grid-cols-4">
+                  {[
+                    { label: "Learn", detail: "Read the explainer", done: true },
+                    { label: "Check", detail: checkpointPassed ? "Checkpoint passed" : checkpointAnswered ? "Review feedback" : "Answer checkpoint", done: checkpointPassed },
+                    { label: "Ask", detail: tutorMessages.length > 0 ? "Tutor used" : "Clarify confusion", done: tutorMessages.length > 0 },
+                    { label: "Practice", detail: checkpointPassed ? "Quest unlocked" : "Locked", done: checkpointPassed },
+                  ].map((step, index) => (
+                    <div key={step.label} className={"rounded-lg border p-3 " + (step.done ? "border-cyber-green/25 bg-cyber-green/5" : "border-glass-border bg-[#0B0C0E]/70")}>
+                      <span className="font-mono text-[10px] uppercase text-on-surface-variant">{index + 1}. {step.label}</span>
+                      <p className="mt-1 text-xs font-bold text-white">{step.detail}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
               <section className="rounded-xl border border-electric-blue/20 bg-[#121820] p-6">
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                   <div>
@@ -319,12 +348,37 @@ export default function LearningModeView({
                       );
                     })}
                   </div>
-                  {checkpointAnswers[activeLesson.id] !== undefined ? (
-                    <div className="mt-4 rounded-lg border border-electric-blue/20 bg-electric-blue/10 p-4 text-xs leading-relaxed text-on-surface-variant">
-                      <p className="font-bold text-white">{activeLesson.checkpoint.explanation}</p>
+                  {checkpointAnswered ? (
+                    <div className={(checkpointPassed ? "mt-4 rounded-lg border border-cyber-green/20 bg-cyber-green/10" : "mt-4 rounded-lg border border-warning-amber/20 bg-warning-amber/10") + " p-4 text-xs leading-relaxed text-on-surface-variant"}>
+                      <p className="font-bold text-white">{checkpointPassed ? "Correct. You can turn this lesson into a quest." : "Not yet. Read the feedback, ask the tutor, then answer again."}</p>
+                      <p className="mt-2">{activeLesson.checkpoint.explanation}</p>
                       <p className="mt-2 text-electric-blue">Next check: {activeLesson.checkpoint.follow_up_question}</p>
                     </div>
                   ) : null}
+
+                  <div className="mt-4 flex flex-wrap gap-2 border-t border-glass-border pt-4">
+                    <button
+                      onClick={() => setActiveLessonIndex(previousLessonIndex)}
+                      disabled={activeLessonIndex === 0}
+                      className="rounded border border-glass-border px-3 py-2 font-mono text-[10px] font-bold uppercase text-on-surface-variant hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Previous Lesson
+                    </button>
+                    <button
+                      onClick={() => setActiveLessonIndex(nextLessonIndex)}
+                      disabled={!module || activeLessonIndex >= module.lessons.length - 1}
+                      className="rounded border border-electric-blue/30 px-3 py-2 font-mono text-[10px] font-bold uppercase text-electric-blue hover:bg-electric-blue/10 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Next Lesson
+                    </button>
+                    <button
+                      onClick={() => onStartLessonQuest(activeLesson.quest_bridge || module.capstone_quest_prompt)}
+                      disabled={!checkpointPassed}
+                      className="rounded border border-cyber-green/30 px-3 py-2 font-mono text-[10px] font-bold uppercase text-cyber-green hover:bg-cyber-green/10 disabled:cursor-not-allowed disabled:border-warning-amber/25 disabled:text-warning-amber"
+                    >
+                      Start Practice Quest
+                    </button>
+                  </div>
                 </div>
               </section>
 
