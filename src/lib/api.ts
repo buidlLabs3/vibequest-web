@@ -106,6 +106,23 @@ export type GenerateQuestRequest = {
   learning_context?: LearningQuestLink | null;
 };
 
+export type CodeTutorRequest = {
+  quest_title: string;
+  quest_objective: string;
+  question: string;
+  files: WorkbenchFile[];
+  challenge?: QuestChallengeBrief | null;
+};
+
+export type CodeTutorResponse = {
+  source: "open-ai";
+  answer: string;
+  code_walkthrough: string[];
+  common_misunderstanding: string;
+  follow_up_question: string;
+  references: LearningResourceDto[];
+};
+
 export type StoredGateProgress = {
   id: string;
   name: string;
@@ -439,6 +456,22 @@ export async function askLearningTutor(
   }
 
   return response.json() as Promise<LearningTutorResponse>;
+}
+
+export async function askCodeTutor(payload: CodeTutorRequest): Promise<CodeTutorResponse> {
+  const response = await fetch(`${API_BASE_URL}/ai/code/tutor`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(await apiErrorMessage(response, "Code tutor failed to answer."));
+  }
+
+  return response.json() as Promise<CodeTutorResponse>;
 }
 
 

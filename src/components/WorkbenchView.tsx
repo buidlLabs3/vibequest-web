@@ -142,6 +142,7 @@ interface WorkbenchViewProps {
   onShip: () => void;
   onChallengeComplete: () => void;
   onBossAttempt: (attempt: BossAttemptRequest, solved: boolean) => void;
+  onAskCodeTutor: (question: string, questData: QuestData) => Promise<string>;
   onWorkspaceVerified: () => void;
   ckbRpcOnline: boolean;
   generationError?: string | null;
@@ -194,6 +195,7 @@ export default function WorkbenchView({
   onShip,
   onChallengeComplete,
   onBossAttempt,
+  onAskCodeTutor,
   onWorkspaceVerified,
   ckbRpcOnline,
   generationError,
@@ -205,6 +207,8 @@ export default function WorkbenchView({
   const [showBossHint, setShowBossHint] = useState(false);
   const [mentorQuestion, setMentorQuestion] = useState("");
   const [mentorAnswer, setMentorAnswer] = useState<string | null>(null);
+  const [mentorLoading, setMentorLoading] = useState(false);
+  const [mentorError, setMentorError] = useState<string | null>(null);
   const [codeTheme, setCodeTheme] = useState<CodeThemeId>("nebula");
 
   const workspaceFiles = questData?.files ?? EMPTY_WORKSPACE_FILES;
@@ -305,16 +309,24 @@ export default function WorkbenchView({
     }
   };
 
-  const askMentor = () => {
-    if (!questData || !codeInsights) return;
-    setMentorAnswer(buildMentorAnswer(mentorQuestion, questData, codeInsights));
+  const askMentor = async (question = mentorQuestion) => {
+    if (!questData || !codeInsights || !question.trim()) return;
+
+    setMentorLoading(true);
+    setMentorError(null);
+    try {
+      setMentorAnswer(await onAskCodeTutor(question, questData));
+    } catch (error) {
+      setMentorError(error instanceof Error ? error.message : "Code tutor is temporarily unavailable.");
+      setMentorAnswer(buildMentorAnswer(question, questData, codeInsights));
+    } finally {
+      setMentorLoading(false);
+    }
   };
 
   const applyMentorPrompt = (prompt: string) => {
     setMentorQuestion(prompt);
-    if (questData && codeInsights) {
-      setMentorAnswer(buildMentorAnswer(prompt, questData, codeInsights));
-    }
+    void askMentor(prompt);
   };
 
   useEffect(() => {
@@ -323,6 +335,7 @@ export default function WorkbenchView({
     setShowBossHint(false);
     setMentorQuestion("");
     setMentorAnswer(null);
+    setMentorError(null);
     setTestConsoleLogs([]);
   }, [questData?.questName]);
 
@@ -679,7 +692,8 @@ export default function WorkbenchView({
                     <button
                       key={prompt}
                       onClick={() => applyMentorPrompt(prompt)}
-                      className="rounded-lg border border-glass-border bg-[#0B0C0E]/70 px-3 py-2 text-left font-mono text-[10px] uppercase leading-tight text-on-surface-variant transition-colors hover:border-electric-blue/40 hover:text-white"
+                      disabled={mentorLoading}
+                      className="rounded-lg border border-glass-border bg-[#0B0C0E]/70 px-3 py-2 text-left font-mono text-[10px] uppercase leading-tight text-on-surface-variant transition-colors hover:border-electric-blue/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {prompt}
                     </button>
@@ -693,12 +707,17 @@ export default function WorkbenchView({
                   className="mt-4 w-full resize-none rounded-lg border border-glass-border bg-[#0B0C0E] p-3 text-xs leading-relaxed text-white outline-none placeholder:text-on-surface-variant focus:border-cyber-green"
                 />
                 <button
-                  onClick={askMentor}
-                  disabled={!mentorQuestion.trim()}
+                  onClick={() => void askMentor()}
+                  disabled={!mentorQuestion.trim() || mentorLoading}
                   className="mt-3 w-full rounded-lg bg-cyber-green py-3 text-xs font-black uppercase tracking-wider text-black transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:brightness-50"
                 >
-                  Explain From Active Code
+                  {mentorLoading ? "Asking AI Code Tutor..." : "Explain From Active Code"}
                 </button>
+                {mentorError && (
+                  <div className="mt-3 rounded-lg border border-warning-amber/30 bg-warning-amber/10 p-3 text-[11px] leading-relaxed text-warning-amber">
+                    {mentorError} Showing local code analysis instead.
+                  </div>
+                )}
                 {mentorAnswer && (
                   <div className="mt-4 whitespace-pre-wrap rounded-lg border border-cyber-green/20 bg-cyber-green/5 p-4 text-xs leading-relaxed text-on-surface-variant">
                     {mentorAnswer}

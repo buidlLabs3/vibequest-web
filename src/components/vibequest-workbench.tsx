@@ -13,6 +13,7 @@ import WalletConnectModal from "@/components/WalletConnectModal";
 import WorkbenchView from "@/components/WorkbenchView";
 import {
   askAndSaveLearningTutor,
+  askCodeTutor,
   askLearningTutor,
   completeQuest,
   generateLearningModule,
@@ -976,6 +977,54 @@ export function VibeQuestWorkbench() {
     setActiveTab("quest-run");
   }, [activeLessonIndex, checkpointAnswers, learnerGoal, learningModule, learningModuleId, selectedInterests]);
 
+  const handleAskCodeTutor = useCallback(async (question: string, activeQuest: QuestData) => {
+    const response = await askCodeTutor({
+      quest_title: activeQuest.questName,
+      quest_objective: activeQuest.description,
+      question,
+      files: activeQuest.files.map((file) => ({
+        path: file.path,
+        language: file.path.endsWith(".test.ts") ? "test.ts" : file.path.endsWith(".ts") ? "ts" : "text",
+        content: file.content,
+      })),
+      challenge: activeQuest.bossFight
+        ? {
+            question: activeQuest.bossFight.question,
+            correct_answer: activeQuest.bossFight.options[activeQuest.bossFight.correctAnswerIndex]?.label ?? activeQuest.bossFight.challenge,
+            wrong_answers: activeQuest.bossFight.options
+              .filter((_, index) => index !== activeQuest.bossFight.correctAnswerIndex)
+              .slice(0, 3)
+              .map((option) => ({ label: option.label, feedback: option.rationale })),
+            invariant: activeQuest.bossFight.victoryMessage,
+            attack_scenario: activeQuest.bossFight.challenge,
+            code_focus: activeQuest.bossFight.hint,
+            test_focus: activeQuest.bossFight.insight,
+            hint: activeQuest.bossFight.hint,
+            follow_up_question: activeQuest.bossFight.insight,
+            resources: activeQuest.bossFight.resources,
+          }
+        : null,
+    });
+
+    const walkthrough = response.code_walkthrough.map((item) => `- ${item}`).join("\n");
+    const references = response.references
+      .map((resource) => `- ${resource.title}: ${resource.reason} (${resource.url})`)
+      .join("\n");
+
+    return [
+      response.answer,
+      "",
+      "Code walkthrough:",
+      walkthrough,
+      "",
+      `Common misunderstanding: ${response.common_misunderstanding}`,
+      "",
+      `Check yourself: ${response.follow_up_question}`,
+      "",
+      `References:\n${references}`,
+    ].join("\n");
+  }, []);
+
   const handleGenerateActiveLessonQuest = useCallback(() => {
     const lesson = learningModule?.lessons[activeLessonIndex];
     if (!lesson || !learningModule) {
@@ -1081,6 +1130,7 @@ export function VibeQuestWorkbench() {
             onShip={() => setActiveTab("ship-gate")}
             onChallengeComplete={() => markCurrentPracticeRecord("completed")}
             onBossAttempt={handleBossAttempt}
+            onAskCodeTutor={handleAskCodeTutor}
             onWorkspaceVerified={() => markCurrentPracticeRecord("verified")}
             ckbRpcOnline={generationBackendReady}
             generationError={generationError}
