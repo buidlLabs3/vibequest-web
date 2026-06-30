@@ -1,4 +1,5 @@
 export type Difficulty = "novice" | "builder" | "boss";
+export type QuestSource = "open-ai" | "core-fallback";
 
 export type QuestBlueprint = {
   title: string;
@@ -43,7 +44,7 @@ export type PersistenceStatus = {
 
 export type GenerateQuestResponse = {
   run_id: string;
-  source: "open-ai";
+  source: QuestSource;
   learning_context?: LearningQuestLink | null;
   wallet: WalletBinding;
   quest: QuestBlueprint;
@@ -117,7 +118,7 @@ export type CodeTutorRequest = {
 };
 
 export type CodeTutorResponse = {
-  source: "open-ai";
+  source: QuestSource;
   answer: string;
   code_walkthrough: string[];
   common_misunderstanding: string;
@@ -177,7 +178,7 @@ export type QuestRunRecord = {
   skill_track: string;
   difficulty: Difficulty;
   learning_context?: LearningQuestLink | null;
-  source: "open-ai";
+  source: QuestSource;
   quest: QuestBlueprint;
   ship_requirements: ShipRequirements;
   progress: QuestProgress;
@@ -244,8 +245,9 @@ export type GenerateLearningModuleRequest = {
 
 export type GenerateLearningModuleResponse = {
   module_id: string;
-  source: "open-ai";
+  source: QuestSource;
   module: LearningModuleDto;
+  warning: string | null;
 };
 
 export type LearningTutorRequest = {
@@ -256,7 +258,7 @@ export type LearningTutorRequest = {
 };
 
 export type LearningTutorResponse = {
-  source: "open-ai";
+  source: QuestSource;
   answer: string;
   why_it_matters: string;
   follow_up_question: string;
@@ -276,7 +278,7 @@ export type LearningTutorMessageDto = {
 export type LearningSessionRecord = {
   module_id: string;
   user_address: string;
-  source: "open-ai";
+  source: QuestSource;
   module: LearningModuleDto;
   selected_interests: string[];
   learner_goal: string;

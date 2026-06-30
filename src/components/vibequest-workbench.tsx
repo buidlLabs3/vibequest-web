@@ -136,6 +136,7 @@ export function VibeQuestWorkbench() {
   const [learningModule, setLearningModule] = useState<LearningModuleDto | null>(null);
   const [learningGenerating, setLearningGenerating] = useState(false);
   const [learningError, setLearningError] = useState<string | null>(null);
+  const [learningWarning, setLearningWarning] = useState<string | null>(null);
   const [selectedInterests, setSelectedInterests] = useState<string[]>(["CKB Foundations", "Fiber Payments"]);
   const [learnerGoal, setLearnerGoal] = useState("Teach me CKB/Fiber well enough to understand generated code, explain the trust boundary, and complete practical quests.");
   const [learnerBackground, setLearnerBackground] = useState("Vibecoder");
@@ -881,6 +882,7 @@ export function VibeQuestWorkbench() {
   const handleGenerateLearningModule = useCallback(async () => {
     setLearningGenerating(true);
     setLearningError(null);
+    setLearningWarning(null);
     setTutorMessages([]);
     setCheckpointAnswers({});
     setActiveLessonIndex(0);
@@ -895,6 +897,7 @@ export function VibeQuestWorkbench() {
       });
       setLearningModuleId(response.module_id);
       setLearningModule(response.module);
+      setLearningWarning(response.warning ?? (response.source === "core-fallback" ? "Structured learning path loaded while live AI lessons recover." : null));
       setLearningSyncState(walletProof ? "saving" : "local-only");
     } catch (error) {
       setLearningError(error instanceof Error ? error.message : "Learning module generation failed.");
@@ -1132,6 +1135,7 @@ export function VibeQuestWorkbench() {
             tutorLoading={tutorLoading}
             syncState={learningSyncState}
             error={learningError}
+            warning={learningWarning}
             selectedInterests={selectedInterests}
             setSelectedInterests={setSelectedInterests}
             learnerGoal={learnerGoal}

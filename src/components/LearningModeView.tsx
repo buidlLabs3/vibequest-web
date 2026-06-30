@@ -31,6 +31,7 @@ interface LearningModeViewProps {
   tutorLoading: boolean;
   syncState: "idle" | "loading" | "saving" | "saved" | "local-only";
   error: string | null;
+  warning: string | null;
   selectedInterests: string[];
   setSelectedInterests: (interests: string[]) => void;
   learnerGoal: string;
@@ -71,6 +72,7 @@ export default function LearningModeView({
   tutorLoading,
   syncState,
   error,
+  warning,
   selectedInterests,
   setSelectedInterests,
   learnerGoal,
@@ -230,6 +232,7 @@ export default function LearningModeView({
                 {generating ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                 Generate Learning Path
               </button>
+              {warning ? <div className="rounded-lg border border-warning-amber/30 bg-warning-amber/10 p-3 text-xs leading-relaxed text-warning-amber">{warning}</div> : null}
               {error ? <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">{error}</div> : null}
             </div>
           </section>
