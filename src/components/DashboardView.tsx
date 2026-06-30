@@ -447,21 +447,29 @@ export default function DashboardView({
             </div>
             {rewardClaims.length > 0 ? (
               <div className="flex max-h-[280px] flex-col gap-2 overflow-y-auto pr-1">
-                {rewardClaims.slice(0, 8).map((claim) => (
-                  <div key={claim.claim_id} className="rounded-lg border border-glass-border/70 bg-[#0B0C0E] p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="font-mono text-[10px] uppercase text-on-surface-variant">{shortId(claim.run_id)}</span>
-                      <span className={"rounded border px-2 py-0.5 font-mono text-[10px] uppercase " + rewardStatusClass(claim.status)}>
-                        {claim.status}
-                      </span>
+                {rewardClaims.slice(0, 8).map((claim) => {
+                  const payoutDisabled = claim.fiber_payment?.status === "verified-no-payout";
+                  const payoutNote = payoutDisabled
+                    ? "verified, payout disabled until funded Fiber node is configured"
+                    : claim.fiber_payment?.payment_hash
+                      ? `payment ${shortId(claim.fiber_payment.payment_hash)}`
+                      : claim.fiber_payment?.status ?? "no payment receipt yet";
+                  return (
+                    <div key={claim.claim_id} className="rounded-lg border border-glass-border/70 bg-[#0B0C0E] p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-mono text-[10px] uppercase text-on-surface-variant">{shortId(claim.run_id)}</span>
+                        <span className={"rounded border px-2 py-0.5 font-mono text-[10px] uppercase " + (payoutDisabled ? "border-warning-amber/20 bg-warning-amber/10 text-warning-amber" : rewardStatusClass(claim.status))}>
+                          {payoutDisabled ? "payout disabled" : claim.status}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-sm font-bold text-white">{claim.amount_shannons} {claim.currency}</p>
+                      <p className={"mt-1 line-clamp-2 font-mono text-[10px] " + (payoutDisabled ? "text-warning-amber" : "text-on-surface-variant")}>
+                        {payoutNote}
+                      </p>
+                      {claim.error ? <p className="mt-1 line-clamp-2 text-[11px] text-red-300">{claim.error}</p> : null}
                     </div>
-                    <p className="mt-2 text-sm font-bold text-white">{claim.amount_shannons} {claim.currency}</p>
-                    <p className="mt-1 truncate font-mono text-[10px] text-on-surface-variant">
-                      {claim.fiber_payment?.payment_hash ? `payment ${shortId(claim.fiber_payment.payment_hash)}` : claim.fiber_payment?.status ?? "no payment receipt yet"}
-                    </p>
-                    {claim.error ? <p className="mt-1 line-clamp-2 text-[11px] text-red-300">{claim.error}</p> : null}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="rounded-lg border border-dashed border-glass-border p-5 text-center text-xs text-on-surface-variant">

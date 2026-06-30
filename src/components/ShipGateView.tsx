@@ -47,8 +47,18 @@ export default function ShipGateView({
   const isAllGatesPassed = gates.every((gate) => gate.isCompleted);
   const invoiceReady = fiberInvoice.trim().length > 0;
   const canShip = Boolean(walletBound && ckbRpcOnline && rewardLedgerOnline && bossFightSolved && isAllGatesPassed && questData && !shipped && invoiceReady && !shipping);
-  const claimState = rewardClaim?.status ?? (shipped ? "verified" : "locked");
+  const payoutDisabled = rewardClaim?.fiber_payment?.status === "verified-no-payout";
+  const claimState = payoutDisabled ? "payout-unavailable" : rewardClaim?.status ?? (shipped ? "verified" : "locked");
   const statusTone = useMemo(() => claimTone(claimState), [claimState]);
+  const payoutSummary = payoutDisabled
+    ? "Claim verified. Automatic Fiber payout is disabled until a funded node is configured."
+    : rewardClaim?.status === "paid"
+      ? "Fiber payment completed."
+      : rewardClaim?.status === "failed"
+        ? "Payout failed. Review the claim error before retrying."
+        : rewardClaim
+          ? "Claim recorded and awaiting payout processing."
+          : "Complete all gates and submit a Fiber invoice to create a claim.";
 
   const submitClaim = () => {
     setInvoiceTouched(true);
@@ -66,11 +76,11 @@ export default function ShipGateView({
           Ship Gate
         </h1>
         <p className="mt-1 max-w-2xl text-sm text-on-surface-variant">
-          Submit the verified quest envelope and bind the reward to a Fiber invoice from the connected learner wallet.
+          Submit the verified quest envelope and bind the reward to a Fiber invoice. Automatic payout only runs when a funded Fiber node is configured.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
         <StatusCard
           icon={<Lock className="h-4 w-4 text-warning-amber" />}
           label="Reward Claim"
@@ -91,6 +101,13 @@ export default function ShipGateView({
           value={`${gates.filter((gate) => gate.isCompleted).length}/${gates.length}`}
           detail={bossFightSolved ? "Boss solved" : "Boss pending"}
           toneClass={isAllGatesPassed && bossFightSolved ? "text-cyber-green" : "text-warning-amber"}
+        />
+        <StatusCard
+          icon={<Zap className="h-4 w-4 text-electric-blue" />}
+          label="Payout Rail"
+          value={payoutDisabled ? "DISABLED" : rewardClaim?.status === "paid" ? "PAID" : "INVOICE"}
+          detail={payoutDisabled ? "Funded Fiber node needed" : rewardClaim ? payoutSummary : "Invoice-bound claim"}
+          toneClass={payoutDisabled ? "text-warning-amber" : rewardClaim?.status === "paid" ? "text-cyber-green" : "text-electric-blue"}
         />
       </div>
 
@@ -135,8 +152,8 @@ export default function ShipGateView({
               </div>
             ) : null}
             {shipped ? (
-              <div className="rounded-lg border border-cyber-green/20 bg-cyber-green/5 p-4 font-mono text-xs font-bold uppercase text-cyber-green">
-                Proof envelope locked. Reward claim recorded in MongoDB.
+              <div className={(payoutDisabled ? "border-warning-amber/20 bg-warning-amber/10 text-warning-amber" : "border-cyber-green/20 bg-cyber-green/5 text-cyber-green") + " rounded-lg border p-4 font-mono text-xs font-bold uppercase"}>
+                {payoutSummary}
               </div>
             ) : (
               <button
@@ -168,7 +185,7 @@ export default function ShipGateView({
                 <LedgerRow label="Run ID" value={shortId(rewardClaim.run_id)} />
                 <LedgerRow label="Status" value={rewardClaim.status.toUpperCase()} valueClass={statusTone.text} />
                 <LedgerRow label="Amount" value={`${rewardClaim.amount_shannons} ${rewardClaim.currency}`} />
-                <LedgerRow label="Payment" value={rewardClaim.fiber_payment?.payment_hash ? shortId(rewardClaim.fiber_payment.payment_hash) : rewardClaim.fiber_payment?.status ?? "pending"} />
+                <LedgerRow label="Payment" value={rewardClaim.fiber_payment?.payment_hash ? shortId(rewardClaim.fiber_payment.payment_hash) : rewardClaim.fiber_payment?.status ?? "pending"} valueClass={payoutDisabled ? "text-warning-amber" : "text-white"} />
                 <LedgerRow label="Updated" value={new Date(rewardClaim.updated_at).toLocaleString()} />
               </div>
             ) : (
@@ -189,7 +206,7 @@ export default function ShipGateView({
               <h3 className="text-base font-bold uppercase text-white">{rewardClaim ? "Claim Recorded" : questData ? "Claim Preloaded" : "No Active Run"}</h3>
               <p className="mt-2 max-w-xs text-xs text-on-surface-variant">
                 {rewardClaim
-                  ? "MongoDB now tracks this reward claim and Fiber payout receipt state."
+                  ? payoutSummary
                   : questData
                     ? "Finish the proof checks, solve the boss, and submit a Fiber invoice."
                     : "Generate a quest before opening the ship gate."}
@@ -269,6 +286,9 @@ function claimTone(status: string) {
   }
   if (status === "failed") {
     return { text: "text-red-400", border: "border-red-500", bg: "bg-red-500/10" };
+  }
+  if (status === "payout-unavailable") {
+    return { text: "text-warning-amber", border: "border-warning-amber", bg: "bg-warning-amber/10" };
   }
   if (status === "verified" || status === "paying") {
     return { text: "text-electric-blue", border: "border-electric-blue", bg: "bg-electric-blue/10" };
