@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   Activity,
   ArrowRight,
@@ -105,6 +105,11 @@ export default function DashboardView({
     completedLessons,
     lessonCount,
   });
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const selectedRun = useMemo(() => {
+    if (questRuns.length === 0) return null;
+    return questRuns.find((run) => run.run_id === selectedRunId) ?? questRuns[0];
+  }, [questRuns, selectedRunId]);
 
   return (
     <div className="mx-auto flex min-h-screen max-w-[1400px] flex-col gap-8 bg-[#0B0C0E] p-4 font-sans text-on-surface md:p-8">
@@ -284,42 +289,106 @@ export default function DashboardView({
 
           <div className="rounded-xl border border-glass-border bg-[#16181D] p-5">
             <div className="mb-4 flex items-center justify-between border-b border-glass-border pb-3">
-              <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Quest History</h2>
+              <div>
+                <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Quest Review</h2>
+                <p className="mt-1 text-xs text-on-surface-variant">Reopen saved quests with code, boss attempts, tutor notes, and next actions.</p>
+              </div>
               <span className="font-mono text-xs text-on-surface-variant">{historyLoading ? "syncing" : questRuns.length}</span>
             </div>
             {historyError ? (
               <div className="rounded-lg border border-warning-amber/30 bg-warning-amber/10 p-3 text-xs text-warning-amber">
                 {historyError}
               </div>
-            ) : questRuns.length > 0 ? (
-              <div className="flex max-h-[320px] flex-col gap-2 overflow-y-auto pr-1">
-                {questRuns.slice(0, 8).map((run) => (
-                  <div key={run.run_id} className="rounded-lg border border-glass-border/70 bg-[#0B0C0E] p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <h3 className="line-clamp-1 text-xs font-bold text-white">{run.quest.title}</h3>
-                      <span className={"rounded border px-2 py-0.5 font-mono text-[10px] uppercase " + (run.status === "completed" ? "border-cyber-green/20 bg-cyber-green/10 text-cyber-green" : "border-warning-amber/20 bg-warning-amber/10 text-warning-amber")}>
-                        {run.status === "completed" ? "completed" : "continue"}
-                      </span>
-                    </div>
-                    <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-on-surface-variant">{run.build_prompt}</p>
-                    {run.learning_context ? (
-                      <p className="mt-2 rounded border border-electric-blue/20 bg-electric-blue/10 px-2 py-1 font-mono text-[10px] uppercase text-electric-blue">
-                        From lesson: {run.learning_context.lesson_title}
-                      </p>
-                    ) : null}
-                    <p className="mt-2 font-mono text-[10px] uppercase text-on-surface-variant">
-                      {run.skill_track} / {run.difficulty} / {new Date(run.updated_at).toLocaleDateString()}
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button onClick={() => onOpenQuestRunRecord(run)} className="rounded border border-electric-blue/30 px-3 py-1.5 font-mono text-[10px] font-bold uppercase text-electric-blue hover:bg-electric-blue/10">
-                        Review / Continue
+            ) : questRuns.length > 0 && selectedRun ? (
+              <div className="grid gap-4 xl:grid-cols-[0.82fr_1.18fr]">
+                <div className="flex max-h-[520px] flex-col gap-2 overflow-y-auto pr-1">
+                  {questRuns.slice(0, 12).map((run) => {
+                    const selected = run.run_id === selectedRun.run_id;
+                    const gateCount = run.progress.gates.length || 3;
+                    const passed = run.progress.gates.filter((gate) => gate.is_completed).length;
+                    return (
+                      <button
+                        key={run.run_id}
+                        onClick={() => setSelectedRunId(run.run_id)}
+                        className={"rounded-lg border p-3 text-left transition-colors " + (selected ? "border-electric-blue/50 bg-electric-blue/10" : "border-glass-border/70 bg-[#0B0C0E] hover:border-electric-blue/25")}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <h3 className="line-clamp-1 text-xs font-bold text-white">{run.quest.title}</h3>
+                          <span className={"rounded border px-2 py-0.5 font-mono text-[10px] uppercase " + (run.status === "completed" ? "border-cyber-green/20 bg-cyber-green/10 text-cyber-green" : "border-warning-amber/20 bg-warning-amber/10 text-warning-amber")}>{run.status === "completed" ? "done" : "open"}</span>
+                        </div>
+                        <p className="mt-2 font-mono text-[10px] uppercase text-on-surface-variant">{passed}/{gateCount} gates / {run.boss_attempts.length} boss / {run.code_tutor_messages.length} tutor</p>
+                        {run.learning_context ? <p className="mt-2 line-clamp-1 text-[11px] text-electric-blue">{run.learning_context.lesson_title}</p> : null}
                       </button>
-                      <button onClick={() => onRedoQuestRun(run)} className="rounded border border-glass-border px-3 py-1.5 font-mono text-[10px] font-bold uppercase text-on-surface-variant hover:text-white">
+                    );
+                  })}
+                </div>
+
+                <div className="rounded-xl border border-glass-border bg-[#0B0C0E] p-4">
+                  <div className="flex flex-col gap-3 border-b border-glass-border pb-4 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <span className="font-mono text-[10px] uppercase tracking-wider text-electric-blue">Selected Quest</span>
+                      <h3 className="mt-1 text-lg font-black text-white">{selectedRun.quest.title}</h3>
+                      <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-on-surface-variant">{selectedRun.quest.build_objective}</p>
+                    </div>
+                    <div className="flex shrink-0 flex-wrap gap-2">
+                      <button onClick={() => onOpenQuestRunRecord(selectedRun)} className="rounded border border-electric-blue/30 px-3 py-2 font-mono text-[10px] font-bold uppercase text-electric-blue hover:bg-electric-blue/10">
+                        Open Workbench
+                      </button>
+                      <button onClick={() => onRedoQuestRun(selectedRun)} className="rounded border border-glass-border px-3 py-2 font-mono text-[10px] font-bold uppercase text-on-surface-variant hover:text-white">
                         Redo Similar
                       </button>
                     </div>
                   </div>
-                ))}
+
+                  <div className="mt-4 grid gap-3 md:grid-cols-4">
+                    <ReviewStat label="Files" value={String(selectedRun.quest.workbench_files.length)} />
+                    <ReviewStat label="Gates" value={`${selectedRun.progress.gates.filter((gate) => gate.is_completed).length}/${selectedRun.progress.gates.length || 3}`} />
+                    <ReviewStat label="Boss" value={selectedRun.progress.boss_fight_solved ? "Solved" : `${selectedRun.boss_attempts.length} tries`} />
+                    <ReviewStat label="Tutor" value={`${selectedRun.code_tutor_messages.filter((message) => message.role === "mentor").length} notes`} />
+                  </div>
+
+                  {selectedRun.learning_context ? (
+                    <div className="mt-4 rounded-lg border border-electric-blue/20 bg-electric-blue/10 p-3">
+                      <p className="font-mono text-[10px] uppercase text-electric-blue">Lesson Source</p>
+                      <p className="mt-1 text-xs font-bold text-white">{selectedRun.learning_context.module_title}</p>
+                      <p className="mt-1 text-xs text-on-surface-variant">{selectedRun.learning_context.lesson_title}</p>
+                    </div>
+                  ) : null}
+
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    <div className="rounded-lg border border-glass-border bg-[#111318] p-3">
+                      <h4 className="font-mono text-[10px] font-bold uppercase text-cyber-green">Generated Files</h4>
+                      <div className="mt-2 space-y-2">
+                        {selectedRun.quest.workbench_files.map((file) => (
+                          <div key={file.path} className="rounded border border-glass-border/60 bg-black/20 px-2 py-1.5">
+                            <p className="font-mono text-[11px] text-white">{file.path}</p>
+                            <p className="font-mono text-[10px] uppercase text-on-surface-variant">{file.language}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-lg border border-glass-border bg-[#111318] p-3">
+                      <h4 className="font-mono text-[10px] font-bold uppercase text-cyber-green">Learning Evidence</h4>
+                      <div className="mt-2 space-y-2 text-xs leading-relaxed text-on-surface-variant">
+                        <p>Latest boss: {selectedRun.boss_attempts.at(-1)?.feedback ?? "No boss attempt yet."}</p>
+                        <p>Latest tutor: {selectedRun.code_tutor_messages.filter((message) => message.role === "mentor").at(-1)?.text ?? "No tutor question saved yet."}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-lg border border-glass-border bg-[#111318] p-3">
+                    <h4 className="font-mono text-[10px] font-bold uppercase text-warning-amber">Next Best Action</h4>
+                    <p className="mt-2 text-xs leading-relaxed text-on-surface-variant">
+                      {selectedRun.status === "completed"
+                        ? "Review the code and tutor notes, then redo a similar quest if you want spaced repetition."
+                        : selectedRun.progress.gates.some((gate) => !gate.is_completed)
+                          ? "Open the workbench, inspect generated files, and run file checks before answering the boss challenge."
+                          : !selectedRun.progress.boss_fight_solved
+                            ? "Open the workbench and solve the boss challenge using the generated code and denial test."
+                            : "Open Ship Gate when you are ready to lock the proof envelope."}
+                    </p>
+                  </div>
+                </div>
               </div>
             ) : (
               <div className="rounded-lg border border-dashed border-glass-border p-5 text-center text-xs text-on-surface-variant">
@@ -466,6 +535,15 @@ export default function DashboardView({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ReviewStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-glass-border bg-[#111318] p-3">
+      <p className="font-mono text-[10px] uppercase text-on-surface-variant">{label}</p>
+      <p className="mt-1 text-sm font-black text-white">{value}</p>
     </div>
   );
 }
