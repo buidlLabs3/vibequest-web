@@ -25,6 +25,7 @@ import {
   updateQuestProgress,
   type BossAttemptRecord,
   type BossAttemptRequest,
+  type CodeTutorMessageRecord,
   type Difficulty,
   type GenerateQuestResponse,
   type HealthResponse,
@@ -987,6 +988,8 @@ export function VibeQuestWorkbench() {
         language: file.path.endsWith(".test.ts") ? "test.ts" : file.path.endsWith(".ts") ? "ts" : "text",
         content: file.content,
       })),
+      run_id: activeQuest.runId,
+      wallet: walletProof,
       challenge: activeQuest.bossFight
         ? {
             question: activeQuest.bossFight.question,
@@ -1006,6 +1009,36 @@ export function VibeQuestWorkbench() {
         : null,
     });
 
+    const now = new Date().toISOString();
+    const messages: CodeTutorMessageRecord[] = [
+      {
+        id: `learner-${Date.now()}`,
+        role: "learner",
+        text: question,
+        code_walkthrough: [],
+        common_misunderstanding: null,
+        follow_up_question: null,
+        references: [],
+        created_at: now,
+      },
+      {
+        id: `mentor-${Date.now()}`,
+        role: "mentor",
+        text: response.answer,
+        code_walkthrough: response.code_walkthrough,
+        common_misunderstanding: response.common_misunderstanding,
+        follow_up_question: response.follow_up_question,
+        references: response.references,
+        created_at: now,
+      },
+    ];
+    setQuestData((previous) => previous?.runId === activeQuest.runId
+      ? { ...previous, codeTutorMessages: [...(previous.codeTutorMessages ?? []), ...messages].slice(-40) }
+      : previous);
+    if (walletProof?.address) {
+      void loadQuestHistory(walletProof.address, activeQuest.runId);
+    }
+
     const walkthrough = response.code_walkthrough.map((item) => `- ${item}`).join("\n");
     const references = response.references
       .map((resource) => `- ${resource.title}: ${resource.reason} (${resource.url})`)
@@ -1023,7 +1056,7 @@ export function VibeQuestWorkbench() {
       "",
       `References:\n${references}`,
     ].join("\n");
-  }, []);
+  }, [loadQuestHistory, walletProof]);
 
   const handleGenerateActiveLessonQuest = useCallback(() => {
     const lesson = learningModule?.lessons[activeLessonIndex];
@@ -1507,7 +1540,11 @@ function normalizeDifficulty(value: string): Difficulty {
   return "builder";
 }
 
-function mapQuestResponse(response: GenerateQuestResponse, bossAttempts: BossAttemptRecord[] = []): QuestData {
+function mapQuestResponse(
+  response: GenerateQuestResponse,
+  bossAttempts: BossAttemptRecord[] = [],
+  codeTutorMessages: CodeTutorMessageRecord[] = [],
+): QuestData {
   const files = response.quest.workbench_files.map((file) => ({
     name: file.path.split("/").pop() ?? file.path,
     path: file.path,
@@ -1530,6 +1567,7 @@ function mapQuestResponse(response: GenerateQuestResponse, bossAttempts: BossAtt
     })),
     bossFight: buildBossFight(response),
     bossAttempts,
+    codeTutorMessages,
   };
 }
 
@@ -1547,7 +1585,7 @@ function mapQuestRunRecord(run: QuestRunRecord): QuestData {
     quest: run.quest,
     ship_requirements: run.ship_requirements,
     persistence: { saved: true, warning: null },
-  }, run.boss_attempts ?? []);
+  }, run.boss_attempts ?? [], run.code_tutor_messages ?? []);
 }
 
 type CodeInsights = {

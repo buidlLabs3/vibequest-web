@@ -112,6 +112,8 @@ export type CodeTutorRequest = {
   question: string;
   files: WorkbenchFile[];
   challenge?: QuestChallengeBrief | null;
+  run_id?: string | null;
+  wallet?: WalletProof | null;
 };
 
 export type CodeTutorResponse = {
@@ -121,6 +123,7 @@ export type CodeTutorResponse = {
   common_misunderstanding: string;
   follow_up_question: string;
   references: LearningResourceDto[];
+  persistence: PersistenceStatus;
 };
 
 export type StoredGateProgress = {
@@ -179,6 +182,7 @@ export type QuestRunRecord = {
   ship_requirements: ShipRequirements;
   progress: QuestProgress;
   boss_attempts: BossAttemptRecord[];
+  code_tutor_messages: CodeTutorMessageRecord[];
   status: QuestRunStatus;
   reward: RewardSnapshot;
   created_at: string;
@@ -335,6 +339,17 @@ export type BossAttemptRecord = {
   correct: boolean;
   feedback: string;
   follow_up_question: string;
+  created_at: string;
+};
+
+export type CodeTutorMessageRecord = {
+  id: string;
+  role: "learner" | "mentor";
+  text: string;
+  code_walkthrough: string[];
+  common_misunderstanding?: string | null;
+  follow_up_question?: string | null;
+  references: LearningResourceDto[];
   created_at: string;
 };
 

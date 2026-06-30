@@ -723,6 +723,32 @@ export default function WorkbenchView({
                     {mentorAnswer}
                   </div>
                 )}
+                {questData.codeTutorMessages?.length ? (
+                  <div className="mt-4 rounded-lg border border-glass-border bg-[#0B0C0E]/70 p-4">
+                    <div className="mb-3 flex items-center justify-between gap-3 border-b border-glass-border pb-2">
+                      <h3 className="font-mono text-[10px] font-bold uppercase tracking-wider text-cyber-green">Tutor History</h3>
+                      <span className="font-mono text-[10px] uppercase text-on-surface-variant">{questData.codeTutorMessages.length} saved</span>
+                    </div>
+                    <div className="max-h-72 space-y-3 overflow-y-auto pr-1">
+                      {questData.codeTutorMessages.slice(-6).map((message) => (
+                        <div key={message.id} className={message.role === "mentor" ? "rounded border border-cyber-green/15 bg-cyber-green/5 p-3" : "rounded border border-electric-blue/15 bg-electric-blue/5 p-3"}>
+                          <div className="mb-1 flex items-center justify-between gap-2 font-mono text-[10px] uppercase">
+                            <span className={message.role === "mentor" ? "text-cyber-green" : "text-electric-blue"}>
+                              {message.role === "mentor" ? "AI Tutor" : "You"}
+                            </span>
+                            <span className="text-on-surface-variant">{new Date(message.created_at).toLocaleString()}</span>
+                          </div>
+                          <p className="whitespace-pre-wrap text-xs leading-relaxed text-on-surface-variant">{message.text}</p>
+                          {message.role === "mentor" && message.follow_up_question ? (
+                            <p className="mt-2 rounded bg-black/20 p-2 text-[11px] leading-relaxed text-white">
+                              Check yourself: {message.follow_up_question}
+                            </p>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
           )}
