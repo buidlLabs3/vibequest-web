@@ -805,15 +805,11 @@ export function VibeQuestWorkbench() {
           wallet: walletProof,
           learning_context: pendingLearningQuestContext,
         });
-        if (response.source !== "open-ai") {
-          throw new Error("AI quest generation did not complete. Please regenerate the quest.");
-        }
-
         const mappedQuest = mapQuestResponse(response);
         setQuestData(mappedQuest);
         setSelectedFile(mappedQuest.files[0] ?? null);
-        const warningText = response.persistence?.warning ?? null;
-        setGenerationError(null);
+        const warningText = response.warning ?? response.persistence?.warning ?? null;
+        setGenerationError(warningText);
         upsertPracticeRecord({
           runId: response.run_id,
           walletAddress: walletProof.address,

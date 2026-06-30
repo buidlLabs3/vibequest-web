@@ -281,7 +281,7 @@ export default function QuestRunView({
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>
                   {generationError}
-                  <span className="mt-1 block text-red-200/80">No template quest was loaded. Adjust the prompt if needed, then regenerate.</span>
+                  <span className="mt-1 block text-red-200/80">If a lesson-compiled quest loads, continue in Workbench. If no quest appears, adjust the prompt and regenerate.</span>
                 </span>
               </div>
             )}

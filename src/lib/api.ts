@@ -50,6 +50,7 @@ export type GenerateQuestResponse = {
   quest: QuestBlueprint;
   ship_requirements: ShipRequirements;
   persistence?: PersistenceStatus;
+  warning?: string | null;
 };
 
 export type WalletBinding = {
@@ -426,7 +427,7 @@ export async function generateQuest(
   if (!response.ok) {
     let message = response.status === 504
       ? "Quest generation timed out before vibequest-core returned. Try again with a shorter prompt."
-      : "Quest generation failed. Check that vibequest-core is running.";
+      : "Quest generation failed. VibeQuest could not compile a usable quest from this request.";
     const bodyText = await response.text().catch(() => "");
 
     try {
