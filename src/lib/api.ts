@@ -66,6 +66,10 @@ export type WalletProof = {
     signature: string;
     identity: string;
     sign_type: string;
+    pubkey?: string;
+    key_type?: string;
+    challenge?: string;
+    alg?: number | string;
   };
 };
 

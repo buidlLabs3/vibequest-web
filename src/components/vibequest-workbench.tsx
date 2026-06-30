@@ -735,6 +735,10 @@ export function VibeQuestWorkbench() {
         signature: signed.signature,
         identity: signed.identity,
         sign_type: normalizeJoyIdSignType(signed.signType),
+        pubkey: readJoyIdStringField(signed.signature, "pubkey"),
+        key_type: readJoyIdStringField(signed.signature, "keyType"),
+        challenge: readJoyIdStringField(signed.signature, "challenge"),
+        alg: readJoyIdScalarField(signed.signature, "alg"),
       },
     };
 
@@ -1320,6 +1324,27 @@ function parseWalletProof(value: string | null): WalletProof | null {
   }
 
   return null;
+}
+
+
+function readJoyIdStringField(payload: string, field: string): string | undefined {
+  try {
+    const parsed = JSON.parse(payload) as Record<string, unknown>;
+    const value = parsed[field];
+    return typeof value === "string" ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function readJoyIdScalarField(payload: string, field: string): string | number | undefined {
+  try {
+    const parsed = JSON.parse(payload) as Record<string, unknown>;
+    const value = parsed[field];
+    return typeof value === "string" || typeof value === "number" ? value : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function normalizeJoyIdSignType(value: unknown): string {
