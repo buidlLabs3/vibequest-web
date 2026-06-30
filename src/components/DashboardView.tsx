@@ -45,6 +45,7 @@ interface DashboardViewProps {
   practiceRecords: PracticeRecord[];
   historyLoading: boolean;
   historyError: string | null;
+  historyPersistenceMessage: string | null;
 }
 
 export default function DashboardView({
@@ -75,6 +76,7 @@ export default function DashboardView({
   practiceRecords,
   historyLoading,
   historyError,
+  historyPersistenceMessage,
 }: DashboardViewProps) {
   const infraReady = Boolean(
     health?.integrations.openai && health.integrations.ckb_rpc && health.integrations.fiber_rpc,
@@ -391,8 +393,8 @@ export default function DashboardView({
                 </div>
               </div>
             ) : (
-              <div className="rounded-lg border border-dashed border-glass-border p-5 text-center text-xs text-on-surface-variant">
-                No saved cloud quests yet. Local learning records below can still be reviewed when available.
+              <div className={"rounded-lg border border-dashed p-5 text-center text-xs " + (historyPersistenceMessage ? "border-warning-amber/40 bg-warning-amber/5 text-warning-amber" : "border-glass-border text-on-surface-variant")}>
+                {historyPersistenceMessage ?? "No saved cloud quests yet. Local learning records below can still be reviewed when available."}
               </div>
             )}
           </div>

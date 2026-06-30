@@ -331,6 +331,10 @@ export type UserQuestHistoryResponse = {
   active_run: QuestRunRecord | null;
   runs: QuestRunRecord[];
   reward_claims: RewardClaimRecord[];
+  persistence?: {
+    available: boolean;
+    message: string | null;
+  };
 };
 
 export type BossAttemptRecord = {

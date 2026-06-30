@@ -132,6 +132,7 @@ export function VibeQuestWorkbench() {
   });
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyPersistenceMessage, setHistoryPersistenceMessage] = useState<string | null>(null);
   const [learningModule, setLearningModule] = useState<LearningModuleDto | null>(null);
   const [learningGenerating, setLearningGenerating] = useState(false);
   const [learningError, setLearningError] = useState<string | null>(null);
@@ -602,6 +603,11 @@ export function VibeQuestWorkbench() {
         setQuestRuns(history.runs);
         setRewardClaims(history.reward_claims ?? []);
         setQuestStats(history.stats);
+        setHistoryPersistenceMessage(
+          history.persistence?.available === false
+            ? history.persistence.message ?? "Cloud quest history is syncing. Continue from local learning records for now."
+            : null,
+        );
 
         const activeRun = preferredRunId
           ? history.runs.find((run) => run.run_id === preferredRunId) ?? history.active_run
@@ -614,6 +620,7 @@ export function VibeQuestWorkbench() {
       } catch (error) {
         const message = error instanceof Error ? error.message : "Quest history failed to load.";
         setHistoryError(normalizeHistoryError(message));
+        setHistoryPersistenceMessage(null);
       } finally {
         setHistoryLoading(false);
       }
@@ -652,6 +659,7 @@ export function VibeQuestWorkbench() {
       } catch (error) {
         const message = error instanceof Error ? error.message : "Quest progress failed to save.";
         setHistoryError(normalizeHistoryError(message));
+        setHistoryPersistenceMessage(null);
       }
     },
     [bossFightSolved, gates, loadQuestHistory, questData?.runId, walletProof],
@@ -1199,6 +1207,7 @@ export function VibeQuestWorkbench() {
             practiceRecords={walletPracticeRecords}
             historyLoading={historyLoading}
             historyError={historyError}
+            historyPersistenceMessage={historyPersistenceMessage}
           />
         )}
 
