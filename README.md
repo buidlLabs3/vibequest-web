@@ -58,9 +58,9 @@ flowchart TD
 | MongoDB | Users, learning sessions, quest runs, tutor messages, reward claims |
 | CKB/Fiber RPC | Readiness checks and ecosystem-specific quest context |
 
-## Spark Proposal
+## Product Architecture
 
-The CKB Spark Program proposal is in [`docs/spark-proposal.md`](docs/spark-proposal.md).
+The product architecture is documented in [`docs/product-architecture.md`](docs/product-architecture.md).
 
 ## Paired Backend
 
