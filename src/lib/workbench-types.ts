@@ -50,6 +50,17 @@ export interface QuestData {
   codeTutorMessages?: CodeTutorMessageRecord[];
 }
 
+
+export interface NotebookEntry {
+  id: string;
+  walletAddress: string;
+  moduleId?: string | null;
+  lessonId?: string | null;
+  lessonTitle?: string | null;
+  text: string;
+  updatedAt: string;
+}
+
 export interface ProofLog {
   id: string;
   type: string;

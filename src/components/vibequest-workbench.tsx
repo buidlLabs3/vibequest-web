@@ -42,6 +42,7 @@ import type {
   ActiveQuestSession,
   BossFight,
   LearningResource,
+  NotebookEntry,
   PracticeRecord,
   ProofLog,
   QuestData,
@@ -67,6 +68,7 @@ const STORAGE_KEYS = {
   legacySecpWalletProof: "vibequest.walletProof.v2",
   proofLogs: "vibequest.proofLogs",
   practiceRecords: "vibequest.practiceRecords.v1",
+  notebookEntries: "vibequest.notebookEntries.v1",
   activeQuestSession: "vibequest.activeQuestSession.v1",
   learningSession: "vibequest.learningSession.v1",
 } as const;
@@ -121,6 +123,8 @@ export function VibeQuestWorkbench() {
   const [gates, setGates] = useState<VerificationGate[]>(EMPTY_GATES);
   const [proofLogs, setProofLogs] = useState<ProofLog[]>([]);
   const [practiceRecords, setPracticeRecords] = useState<PracticeRecord[]>([]);
+  const [notebookEntries, setNotebookEntries] = useState<NotebookEntry[]>([]);
+  const [reflectionDraft, setReflectionDraft] = useState("");
   const [questRuns, setQuestRuns] = useState<QuestRunRecord[]>([]);
   const [rewardClaims, setRewardClaims] = useState<RewardClaimRecord[]>([]);
   const [shipping, setShipping] = useState(false);
@@ -164,6 +168,10 @@ export function VibeQuestWorkbench() {
     () => practiceRecords.filter((record) => record.walletAddress === walletAddress),
     [practiceRecords, walletAddress],
   );
+  const walletNotebookEntries = useMemo(
+    () => notebookEntries.filter((entry) => entry.walletAddress === walletAddress),
+    [notebookEntries, walletAddress],
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -176,6 +184,7 @@ export function VibeQuestWorkbench() {
     window.localStorage.removeItem(STORAGE_KEYS.legacySecpWalletProof);
     const restoredProofLogs = parseProofLogs(window.localStorage.getItem(STORAGE_KEYS.proofLogs));
     const restoredPracticeRecords = parsePracticeRecords(window.localStorage.getItem(STORAGE_KEYS.practiceRecords));
+    const restoredNotebookEntries = parseNotebookEntries(window.localStorage.getItem(STORAGE_KEYS.notebookEntries));
     const restoredActiveSession = parseActiveQuestSession(window.localStorage.getItem(STORAGE_KEYS.activeQuestSession));
     const restoredLearningSession = parseLearningSession(window.localStorage.getItem(STORAGE_KEYS.learningSession));
 
@@ -212,6 +221,10 @@ export function VibeQuestWorkbench() {
 
     if (restoredPracticeRecords.length > 0) {
       setPracticeRecords(restoredPracticeRecords);
+    }
+
+    if (restoredNotebookEntries.length > 0) {
+      setNotebookEntries(restoredNotebookEntries);
     }
 
     if (restoredActiveSession) {
@@ -286,6 +299,18 @@ export function VibeQuestWorkbench() {
       return;
     }
 
+    if (notebookEntries.length > 0) {
+      window.localStorage.setItem(STORAGE_KEYS.notebookEntries, JSON.stringify(notebookEntries));
+    } else {
+      window.localStorage.removeItem(STORAGE_KEYS.notebookEntries);
+    }
+  }, [notebookEntries, sessionReady]);
+
+  useEffect(() => {
+    if (!sessionReady || typeof window === "undefined") {
+      return;
+    }
+
     if (!questData) {
       window.localStorage.removeItem(STORAGE_KEYS.activeQuestSession);
       return;
@@ -334,6 +359,21 @@ export function VibeQuestWorkbench() {
       }),
     );
   }, [activeLessonIndex, checkpointAnswers, learnerBackground, learnerGoal, learningModule, learningModuleId, learningPace, learningSource, selectedInterests, sessionReady, tutorMessages]);
+
+  useEffect(() => {
+    const activeLesson = learningModule?.lessons[activeLessonIndex] ?? null;
+    if (!walletAddress || !learningModule || !activeLesson) {
+      setReflectionDraft("");
+      return;
+    }
+
+    const existing = notebookEntries.find((entry) =>
+      entry.walletAddress === walletAddress &&
+      entry.moduleId === (learningModuleId ?? learningModule.title) &&
+      entry.lessonId === activeLesson.id
+    );
+    setReflectionDraft(existing?.text ?? "");
+  }, [activeLessonIndex, learningModule, learningModuleId, notebookEntries, walletAddress]);
 
   useEffect(() => {
     if (!sessionReady || !walletProof || !learningModule || learningSyncState === "loading") {
@@ -1096,6 +1136,44 @@ export function VibeQuestWorkbench() {
     ].join("\n");
   }, [loadQuestHistory, walletProof]);
 
+  const saveActiveReflection = useCallback(() => {
+    const activeLesson = learningModule?.lessons[activeLessonIndex] ?? null;
+    if (!walletAddress || !learningModule || !activeLesson) {
+      return;
+    }
+
+    const trimmed = reflectionDraft.trim();
+    const moduleId = learningModuleId ?? learningModule.title;
+    const now = new Date().toISOString();
+    setNotebookEntries((previous) => {
+      const existing = previous.find((entry) =>
+        entry.walletAddress === walletAddress && entry.moduleId === moduleId && entry.lessonId === activeLesson.id
+      );
+      if (!trimmed) {
+        return previous.filter((entry) => entry !== existing);
+      }
+
+      const nextEntry: NotebookEntry = {
+        id: existing?.id ?? `note-${Date.now()}`,
+        walletAddress,
+        moduleId,
+        lessonId: activeLesson.id,
+        lessonTitle: activeLesson.title,
+        text: trimmed,
+        updatedAt: now,
+      };
+      return [nextEntry, ...previous.filter((entry) => entry.id !== nextEntry.id)]
+        .sort((first, second) => Date.parse(second.updatedAt) - Date.parse(first.updatedAt))
+        .slice(0, 60);
+    });
+  }, [activeLessonIndex, learningModule, learningModuleId, reflectionDraft, walletAddress]);
+
+  const openLearningLesson = useCallback((lessonIndex: number) => {
+    setActiveLessonIndex(lessonIndex);
+    setLearningError(null);
+    setActiveTab("learn");
+  }, []);
+
   const handleGenerateActiveLessonQuest = useCallback(() => {
     const lesson = learningModule?.lessons[activeLessonIndex];
     if (!lesson || !learningModule) {
@@ -1219,6 +1297,12 @@ export function VibeQuestWorkbench() {
             learningModule={learningModule}
             activeLessonIndex={activeLessonIndex}
             checkpointAnswers={checkpointAnswers}
+            tutorMessages={tutorMessages}
+            notebookEntries={walletNotebookEntries}
+            reflectionDraft={reflectionDraft}
+            setReflectionDraft={setReflectionDraft}
+            onSaveReflection={saveActiveReflection}
+            onOpenLearningLesson={openLearningLesson}
             gates={gates}
             bossFightSolved={bossFightSolved}
             shipped={shipped}
@@ -1412,6 +1496,29 @@ function parsePracticeRecords(value: string | null): PracticeRecord[] {
           isPracticeRecordStatus(record.status) &&
           typeof record.savedToCloud === "boolean" &&
           typeof record.updatedAt === "string",
+      );
+    }
+  } catch {
+    return [];
+  }
+
+  return [];
+}
+
+function parseNotebookEntries(value: string | null): NotebookEntry[] {
+  if (!value) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value) as NotebookEntry[];
+    if (Array.isArray(parsed)) {
+      return parsed.filter(
+        (entry) =>
+          typeof entry.id === "string" &&
+          typeof entry.walletAddress === "string" &&
+          typeof entry.text === "string" &&
+          typeof entry.updatedAt === "string",
       );
     }
   } catch {

@@ -119,8 +119,8 @@ export default function ShipGateView({
               <CheckRow passed={walletBound} title="JoyID Proof" description="The quest run belongs to the connected wallet proof." />
               <CheckRow passed={ckbRpcOnline} title="Generation Backend" description="OpenAI, CKB RPC, and Fiber RPC are available for live quest work." />
               <CheckRow passed={rewardLedgerOnline} title="Reward Ledger" description="MongoDB is available to store quest completion and payout claims." />
-              <CheckRow passed={isAllGatesPassed} title="Workspace Checks" description="Generated files include proof, test, and denial-path signals." />
-              <CheckRow passed={bossFightSolved} title="Boss Challenge" description="The learner defended the generated diff before claiming rewards." />
+              <CheckRow passed={isAllGatesPassed} title="Workspace Checks" description="Open Workbench and run generated file checks so proof, tests, and denial paths are verified." />
+              <CheckRow passed={bossFightSolved} title="Boss Challenge" description="Answer the code-specific boss question in Workbench to prove you understand the generated diff." />
             </div>
           </div>
 
@@ -167,7 +167,7 @@ export default function ShipGateView({
             )}
             {!canShip && !shipped ? (
               <span className="block text-center font-mono text-[10px] uppercase leading-tight text-red-400">
-                Wallet, generation backend, reward ledger, generated checks, boss solution, and Fiber invoice must all be ready.
+                Finish workspace checks, solve the boss challenge, then paste a Fiber invoice to lock the claim.
               </span>
             ) : null}
           </div>
@@ -258,14 +258,14 @@ function CheckRow({
   return (
     <div className="flex items-center justify-between gap-4 rounded-lg border border-glass-border bg-[#0B0C0E]/60 p-4">
       <div className="flex items-center gap-3">
-        {passed ? <CheckCircle className="h-5 w-5 shrink-0 text-cyber-green" /> : <AlertCircle className="h-5 w-5 shrink-0 text-red-500" />}
+        {passed ? <CheckCircle className="h-5 w-5 shrink-0 text-cyber-green" /> : <AlertCircle className="h-5 w-5 shrink-0 text-warning-amber" />}
         <div>
           <h3 className="font-mono text-xs font-bold uppercase text-white">{title}</h3>
           <p className="text-[11px] text-on-surface-variant">{description}</p>
         </div>
       </div>
-      <span className={`font-mono text-[10px] font-bold uppercase ${passed ? "text-cyber-green" : "text-red-500"}`}>
-        {passed ? "PASSED" : "FAILED"}
+      <span className={`font-mono text-[10px] font-bold uppercase ${passed ? "text-cyber-green" : "text-warning-amber"}`}>
+        {passed ? "PASSED" : "PENDING"}
       </span>
     </div>
   );

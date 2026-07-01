@@ -8,6 +8,8 @@ import {
   Code2,
   GraduationCap,
   LayoutDashboard,
+  MessageSquare,
+  PenLine,
   ReceiptText,
   ShieldCheck,
   Wallet,
@@ -15,7 +17,8 @@ import {
 } from "lucide-react";
 
 import type { HealthResponse, LearningModuleDto, QuestRunRecord, RewardClaimRecord, UserQuestCounts } from "@/lib/api";
-import type { PracticeRecord, ProofLog, QuestData, VerificationGate } from "@/lib/workbench-types";
+import type { NotebookEntry, PracticeRecord, ProofLog, QuestData, VerificationGate } from "@/lib/workbench-types";
+import type { TutorMessage } from "@/components/LearningModeView";
 
 interface DashboardViewProps {
   walletBound: boolean;
@@ -26,6 +29,12 @@ interface DashboardViewProps {
   learningModule: LearningModuleDto | null;
   activeLessonIndex: number;
   checkpointAnswers: Record<string, number>;
+  tutorMessages: TutorMessage[];
+  notebookEntries: NotebookEntry[];
+  reflectionDraft: string;
+  setReflectionDraft: (value: string) => void;
+  onSaveReflection: () => void;
+  onOpenLearningLesson: (index: number) => void;
   gates: VerificationGate[];
   bossFightSolved: boolean;
   shipped: boolean;
@@ -57,6 +66,12 @@ export default function DashboardView({
   learningModule,
   activeLessonIndex,
   checkpointAnswers,
+  tutorMessages,
+  notebookEntries,
+  reflectionDraft,
+  setReflectionDraft,
+  onSaveReflection,
+  onOpenLearningLesson,
   gates,
   bossFightSolved,
   shipped,
@@ -84,10 +99,19 @@ export default function DashboardView({
   const rewardLedgerReady = Boolean(health?.integrations.mongodb);
   const passedGates = gates.filter((gate) => gate.isCompleted).length;
   const activeLesson = learningModule?.lessons[activeLessonIndex] ?? null;
-  const completedLessons = learningModule
-    ? learningModule.lessons.filter((lesson) => checkpointAnswers[lesson.id] === lesson.checkpoint.correct_index).length
-    : 0;
+  const lessonRows = learningModule?.lessons.map((lesson, index) => {
+    const answer = checkpointAnswers[lesson.id];
+    const completed = answer === lesson.checkpoint.correct_index;
+    const attempted = answer !== undefined;
+    const relatedRuns = [
+      ...questRuns.filter((run) => run.learning_context?.lesson_id === lesson.id),
+      ...practiceRecords.filter((record) => record.questSnapshot?.learningContext?.lesson_id === lesson.id),
+    ];
+    return { lesson, index, answer, completed, attempted, relatedRuns };
+  }) ?? [];
+  const completedLessons = lessonRows.filter((row) => row.completed).length;
   const lessonCount = learningModule?.lessons.length ?? 0;
+  const learnerQuestions = tutorMessages.filter((message) => message.role === "learner");
   const completedPractice = practiceRecords.filter((record) => record.status === "completed" || record.status === "shipped").length;
   const localInProgress = practiceRecords.filter((record) => record.status !== "completed" && record.status !== "shipped").length;
   const questsStarted = Math.max(questStats.created, practiceRecords.length);
@@ -155,9 +179,9 @@ export default function DashboardView({
               {learningModule ? "Continue Lesson" : questData ? "Continue Quest" : "Build Path"}
             </button>
           </div>
-          <div className="mt-6 grid gap-3 md:grid-cols-4">
+          <div className="mt-6 grid gap-3 md:grid-cols-5">
             {learningModule
-              ? learningModule.lessons.slice(0, 4).map((lesson, index) => {
+              ? learningModule.lessons.slice(0, 5).map((lesson, index) => {
                   const complete = checkpointAnswers[lesson.id] === lesson.checkpoint.correct_index;
                   const active = index === activeLessonIndex;
                   return (
@@ -255,6 +279,120 @@ export default function DashboardView({
       <div className="grid grid-cols-1 gap-8 xl:grid-cols-[1fr_360px]">
         <div className="flex flex-col gap-6">
           {learningModule ? (
+            <section className="rounded-xl border border-electric-blue/20 bg-[#121820] p-5">
+              <div className="mb-4 flex flex-col gap-2 border-b border-glass-border pb-3 md:flex-row md:items-center md:justify-between">
+                <div className="flex items-center gap-2">
+                  <GraduationCap className="h-5 w-5 text-electric-blue" />
+                  <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Lesson Records</h2>
+                </div>
+                <span className="font-mono text-xs text-cyber-green">{completedLessons}/{lessonCount} checkpoints passed</span>
+              </div>
+              <div className="grid gap-3 lg:grid-cols-2">
+                {lessonRows.map((row) => {
+                  const selectedAnswer = row.answer !== undefined ? row.lesson.checkpoint.options[row.answer]?.label : null;
+                  return (
+                    <button
+                      key={row.lesson.id}
+                      onClick={() => onOpenLearningLesson(row.index)}
+                      className={"rounded-lg border p-4 text-left transition-colors " + (row.completed ? "border-cyber-green/25 bg-cyber-green/5" : row.attempted ? "border-warning-amber/25 bg-warning-amber/5" : row.index === activeLessonIndex ? "border-electric-blue/40 bg-electric-blue/10" : "border-glass-border/70 bg-[#0B0C0E]/70 hover:border-electric-blue/30")}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <span className="font-mono text-[10px] uppercase text-on-surface-variant">Module {row.index + 1}</span>
+                          <h3 className="mt-1 text-sm font-black text-white">{row.lesson.title}</h3>
+                        </div>
+                        <span className={"rounded border px-2 py-0.5 font-mono text-[10px] uppercase " + (row.completed ? "border-cyber-green/20 bg-cyber-green/10 text-cyber-green" : row.attempted ? "border-warning-amber/20 bg-warning-amber/10 text-warning-amber" : "border-glass-border bg-black/20 text-on-surface-variant")}>
+                          {row.completed ? "passed" : row.attempted ? "review" : "open"}
+                        </span>
+                      </div>
+                      <p className="mt-3 line-clamp-2 text-xs leading-relaxed text-on-surface-variant">{row.lesson.why_it_matters}</p>
+                      <div className="mt-3 rounded border border-glass-border/70 bg-black/20 p-3">
+                        <p className="line-clamp-2 text-[11px] font-bold leading-relaxed text-white">{row.lesson.checkpoint.question}</p>
+                        <p className="mt-1 line-clamp-1 text-[10px] text-on-surface-variant">{selectedAnswer ? `Answered: ${selectedAnswer}` : "No checkpoint answer yet"}</p>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2 font-mono text-[10px] uppercase text-on-surface-variant">
+                        <span>{row.relatedRuns.length} related quest{row.relatedRuns.length === 1 ? "" : "s"}</span>
+                        <span>/</span>
+                        <span>{notebookEntries.some((entry) => entry.lessonId === row.lesson.id) ? "note saved" : "no note"}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
+
+          <section className="grid gap-6 lg:grid-cols-[1fr_0.9fr]">
+            <div className="rounded-xl border border-glass-border bg-[#16181D] p-5">
+              <div className="mb-4 flex items-center justify-between border-b border-glass-border pb-3">
+                <div className="flex items-center gap-2">
+                  <PenLine className="h-5 w-5 text-cyber-green" />
+                  <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Learning Notebook</h2>
+                </div>
+                <span className="font-mono text-xs text-on-surface-variant">{notebookEntries.length}</span>
+              </div>
+              {activeLesson ? (
+                <div className="grid gap-3">
+                  <div>
+                    <span className="font-mono text-[10px] uppercase text-electric-blue">Current lesson reflection</span>
+                    <h3 className="mt-1 text-sm font-bold text-white">{activeLesson.title}</h3>
+                  </div>
+                  <textarea
+                    value={reflectionDraft}
+                    onChange={(event) => setReflectionDraft(event.target.value)}
+                    rows={7}
+                    placeholder="Write what you now understand, what still feels fuzzy, and the exact field you would mutate in a denial test."
+                    className="min-h-40 resize-y rounded-lg border border-glass-border bg-[#0B0C0E] p-3 text-xs leading-relaxed text-white outline-none placeholder:text-on-surface-variant focus:border-electric-blue/50"
+                  />
+                  <button onClick={onSaveReflection} className="w-fit rounded border border-cyber-green/30 px-4 py-2 font-mono text-[10px] font-bold uppercase text-cyber-green hover:bg-cyber-green/10">
+                    Save Reflection
+                  </button>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed border-glass-border p-5 text-center text-xs text-on-surface-variant">
+                  Generate a learning path to start writing lesson notes.
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-glass-border bg-[#16181D] p-5">
+              <div className="mb-4 flex items-center justify-between border-b border-glass-border pb-3">
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="h-5 w-5 text-electric-blue" />
+                  <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Tutor Questions</h2>
+                </div>
+                <span className="font-mono text-xs text-on-surface-variant">{learnerQuestions.length}</span>
+              </div>
+              <div className="flex max-h-[300px] flex-col gap-2 overflow-y-auto pr-1">
+                {learnerQuestions.length > 0 ? learnerQuestions.slice(0, 8).map((message) => (
+                  <div key={message.id} className="rounded-lg border border-electric-blue/20 bg-electric-blue/10 p-3">
+                    <span className="font-mono text-[10px] uppercase text-electric-blue">Question</span>
+                    <p className="mt-1 text-xs leading-relaxed text-white">{message.text}</p>
+                    {message.createdAt ? <p className="mt-2 font-mono text-[10px] text-on-surface-variant">{new Date(message.createdAt).toLocaleString()}</p> : null}
+                  </div>
+                )) : (
+                  <div className="rounded-lg border border-dashed border-glass-border p-5 text-center text-xs text-on-surface-variant">
+                    Questions you ask inside lessons will appear here for review.
+                  </div>
+                )}
+              </div>
+              {notebookEntries.length > 0 ? (
+                <div className="mt-4 border-t border-glass-border pt-4">
+                  <h3 className="font-mono text-[10px] font-bold uppercase text-white">Recent Notes</h3>
+                  <div className="mt-2 flex max-h-[180px] flex-col gap-2 overflow-y-auto pr-1">
+                    {notebookEntries.slice(0, 4).map((entry) => (
+                      <button key={entry.id} onClick={() => entry.lessonId ? onOpenLearningLesson(Math.max(0, lessonRows.findIndex((row) => row.lesson.id === entry.lessonId))) : onOpenLearn()} className="rounded border border-glass-border/70 bg-[#0B0C0E]/70 p-3 text-left hover:border-electric-blue/30">
+                        <p className="line-clamp-1 text-xs font-bold text-white">{entry.lessonTitle ?? "Learning note"}</p>
+                        <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-on-surface-variant">{entry.text}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </section>
+
+          {learningModule ? (
             <div className="rounded-xl border border-electric-blue/20 bg-[#121820] p-5">
               <div className="mb-4 flex items-center justify-between border-b border-glass-border pb-3">
                 <div className="flex items-center gap-2">
@@ -268,7 +406,7 @@ export default function DashboardView({
                   const complete = checkpointAnswers[lesson.id] === lesson.checkpoint.correct_index;
                   const active = index === activeLessonIndex;
                   return (
-                    <button key={lesson.id} onClick={onOpenLearn} className={"rounded-lg border p-3 text-left transition-colors " + (complete ? "border-cyber-green/25 bg-cyber-green/5" : active ? "border-electric-blue/40 bg-electric-blue/10" : "border-glass-border/70 bg-[#0B0C0E]/70 hover:border-electric-blue/30")}>
+                    <button key={lesson.id} onClick={() => onOpenLearningLesson(index)} className={"rounded-lg border p-3 text-left transition-colors " + (complete ? "border-cyber-green/25 bg-cyber-green/5" : active ? "border-electric-blue/40 bg-electric-blue/10" : "border-glass-border/70 bg-[#0B0C0E]/70 hover:border-electric-blue/30")}>
                       <div className="flex items-center justify-between gap-3">
                         <h3 className="line-clamp-1 text-xs font-bold text-white">{index + 1}. {lesson.title}</h3>
                         <span className="font-mono text-[10px] uppercase text-on-surface-variant">{complete ? "done" : active ? "next" : "up next"}</span>
@@ -279,7 +417,7 @@ export default function DashboardView({
                 })}
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
-                <button onClick={onOpenLearn} className="rounded border border-electric-blue/30 px-3 py-1.5 font-mono text-[10px] font-bold uppercase text-electric-blue hover:bg-electric-blue/10">
+                <button onClick={() => onOpenLearningLesson(activeLessonIndex)} className="rounded border border-electric-blue/30 px-3 py-1.5 font-mono text-[10px] font-bold uppercase text-electric-blue hover:bg-electric-blue/10">
                   Continue Lesson
                 </button>
                 <button onClick={onGenerateActiveLessonQuest} className="rounded border border-cyber-green/30 px-3 py-1.5 font-mono text-[10px] font-bold uppercase text-cyber-green hover:bg-cyber-green/10">
