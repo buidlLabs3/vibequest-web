@@ -180,17 +180,22 @@ export function VibeQuestWorkbench() {
     const restoredLearningSession = parseLearningSession(window.localStorage.getItem(STORAGE_KEYS.learningSession));
 
     if (restoredLearningSession) {
-      setLearningModule(restoredLearningSession.module);
-      setLearningModuleId(restoredLearningSession.moduleId ?? null);
-      setLearningSource(restoredLearningSession.source);
-      setLearningWarning(restoredLearningSession.source === "core-fallback" ? "Structured learning path restored from this browser." : null);
-      setSelectedInterests(restoredLearningSession.selectedInterests);
-      setLearnerGoal(restoredLearningSession.learnerGoal);
-      setLearnerBackground(restoredLearningSession.background);
-      setLearningPace(restoredLearningSession.pace);
-      setActiveLessonIndex(restoredLearningSession.activeLessonIndex);
-      setCheckpointAnswers(restoredLearningSession.checkpointAnswers);
-      setTutorMessages(restoredLearningSession.tutorMessages);
+      if (isLegacyLearningModule(restoredLearningSession.module, restoredLearningSession.source)) {
+        window.localStorage.removeItem(STORAGE_KEYS.learningSession);
+        setLearningWarning("Your previous learning path used the old lightweight lesson format. Generate a fresh OpenAI-authored path.");
+      } else {
+        setLearningModule(restoredLearningSession.module);
+        setLearningModuleId(restoredLearningSession.moduleId ?? null);
+        setLearningSource(restoredLearningSession.source);
+        setLearningWarning(null);
+        setSelectedInterests(restoredLearningSession.selectedInterests);
+        setLearnerGoal(restoredLearningSession.learnerGoal);
+        setLearnerBackground(restoredLearningSession.background);
+        setLearningPace(restoredLearningSession.pace);
+        setActiveLessonIndex(restoredLearningSession.activeLessonIndex);
+        setCheckpointAnswers(restoredLearningSession.checkpointAnswers);
+        setTutorMessages(restoredLearningSession.tutorMessages);
+      }
     }
 
     if (restoredTab) {
@@ -559,6 +564,18 @@ export function VibeQuestWorkbench() {
   }, []);
 
   const applyLearningSession = useCallback((session: LearningSessionRecord) => {
+    if (isLegacyLearningModule(session.module, session.source)) {
+      setLearningModule(null);
+      setLearningModuleId(null);
+      setCheckpointAnswers({});
+      setTutorMessages([]);
+      lastSavedLearningSnapshotRef.current = null;
+      setLearningWarning("Your saved learning path used the old lightweight lesson format. Generate a fresh OpenAI-authored path.");
+      setLearningSyncState("idle");
+      return;
+    }
+
+    const tutorMessages = session.tutor_messages.map(mapTutorMessage);
     setLearningModuleId(session.module_id);
     setLearningModule(session.module);
     setSelectedInterests(session.selected_interests);
@@ -567,7 +584,6 @@ export function VibeQuestWorkbench() {
     setLearningPace(session.pace);
     setActiveLessonIndex(session.active_lesson_index);
     setCheckpointAnswers(session.checkpoint_answers);
-    const tutorMessages = session.tutor_messages.map(mapTutorMessage);
     setTutorMessages(tutorMessages);
     lastSavedLearningSnapshotRef.current = JSON.stringify({
       wallet: walletProof,
@@ -583,7 +599,7 @@ export function VibeQuestWorkbench() {
       tutor_messages: tutorMessages.map(mapTutorMessageDto),
     });
     setLearningSource(session.source);
-    setLearningWarning(session.source === "core-fallback" ? "Structured learning path restored from your saved session." : null);
+    setLearningWarning(null);
     setLearningSyncState("saved");
   }, [walletProof]);
 
@@ -1451,6 +1467,39 @@ function parseLearningSession(value: string | null): LearningSession | null {
   }
 
   return null;
+}
+
+function isLegacyLearningModule(module: LearningModuleDto, source: "open-ai" | "core-fallback"): boolean {
+  if (source === "core-fallback") {
+    return true;
+  }
+
+  const haystack = [
+    module.title,
+    module.learner_profile,
+    module.outcome,
+    module.capstone_quest_prompt,
+    ...module.lessons.flatMap((lesson) => [
+      lesson.title,
+      lesson.why_it_matters,
+      lesson.explanation,
+      lesson.quest_bridge,
+      lesson.checkpoint.question,
+      lesson.checkpoint.explanation,
+      lesson.checkpoint.follow_up_question,
+      ...lesson.checkpoint.options.flatMap((option) => [option.label, option.feedback]),
+    ]),
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  return [
+    "without full lesson text",
+    "in practice, inspect the generated code for",
+    "structured learning path loaded",
+    "structured learning path restored",
+    "vibequest built a structured path",
+  ].some((marker) => haystack.includes(marker));
 }
 
 function isLearningModule(value: unknown): value is LearningModuleDto {
