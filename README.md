@@ -1,6 +1,6 @@
 # VibeQuest Web
 
-Next.js + TypeScript frontend for VibeQuest: a gamified vibecoding arena where builders generate real apps with AI, then unlock shipping by explaining, debugging, testing, attacking, and remixing the generated code.
+Next.js + TypeScript frontend for VibeQuest: an AI gamified CKB/Fiber learning workbench where users learn protocol concepts, generate practical quests, inspect code, pass verification gates, and record proof of understanding.
 
 Requires Node.js `>=20.19.0`.
 
@@ -23,17 +23,46 @@ npm run dev
 
 ## Product Shape
 
-- Build prompt arena for AI-assisted app generation.
-- Live quest generation through `vibequest-core`.
-- CKB wallet binding through CCC; quest runs require a signed `CkbSecp256k1` proof.
-- Comprehension meter that blocks rewards until the user proves understanding.
-- Challenge rooms: Explain, Debug, Remix, Attack, Ship.
-- Quest board for CKB/Fiber builder tracks.
-- Proof rail for CKB credentials and Fiber rewards; reward claiming stays locked until backend RPCs are configured.
+- AI-generated CKB/Fiber learning modules based on learner interests, background, and pace.
+- Interactive checkpoints before practical quests unlock.
+- Lesson-to-quest flow that generates code, denial tests, and boss challenges through `vibequest-core`.
+- JoyID wallet binding through CCC for learner identity and reward-claim ownership.
+- Workbench for generated file inspection, verification checks, code tutoring, and boss challenge completion.
+- Dashboard for completed/incomplete lessons, related quests, tutor questions, and learner notebook reflections.
+- Ship Gate for a JoyID-bound proof envelope and Fiber invoice-bound reward claim.
+
+## Architecture Flow
+
+```text
+Learner Intent
+  -> AI Learning Engine
+  -> 5-module CKB/Fiber lesson path
+  -> checkpoint + tutor + notebook
+  -> Lesson-to-Quest Compiler
+  -> generated quest files + denial tests + boss challenge
+  -> Workbench Verification
+  -> Dashboard Record
+  -> Ship Gate
+  -> JoyID-bound proof envelope + Fiber invoice-bound reward claim
+```
+
+| Layer | Responsibility |
+| --- | --- |
+| Next.js frontend | Learning UX, workbench, dashboard, wallet flow, ship gate |
+| JoyID / CCC | Wallet binding for learner identity |
+| Next.js API proxy | Browser-safe proxy to the Rust backend |
+| `vibequest-core` | AI generation, quest compilation, verification state, persistence, reward claims |
+| OpenAI Responses API | Lesson seeds, quest seeds, tutor explanations |
+| MongoDB | Users, learning sessions, quest runs, tutor messages, reward claims |
+| CKB/Fiber RPC | Readiness checks and ecosystem-specific quest context |
+
+## Spark Proposal
+
+The CKB Spark Program proposal is in [`docs/spark-proposal.md`](docs/spark-proposal.md).
 
 ## Paired Backend
 
-Use `vibequest-core` for quest generation, scoring, OpenAI calls, CKB proof receipts, and Fiber reward orchestration.
+Use `vibequest-core` for AI lesson generation, quest compilation, scoring, OpenAI calls, MongoDB persistence, CKB readiness, and Fiber reward orchestration.
 
 ## Checks
 
