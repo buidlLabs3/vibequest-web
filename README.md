@@ -33,17 +33,19 @@ npm run dev
 
 ## Architecture Flow
 
-```text
-Learner Intent
-  -> AI Learning Engine
-  -> 5-module CKB/Fiber lesson path
-  -> checkpoint + tutor + notebook
-  -> Lesson-to-Quest Compiler
-  -> generated quest files + denial tests + boss challenge
-  -> Workbench Verification
-  -> Dashboard Record
-  -> Ship Gate
-  -> JoyID-bound proof envelope + Fiber invoice-bound reward claim
+```mermaid
+flowchart TD
+    A["Learner Intent"] --> B["AI Learning Engine"]
+    B --> C["5-Module CKB/Fiber Lesson Path"]
+    C --> D["Checkpoint + Tutor + Notebook"]
+    D --> E{"Checkpoint Passed?"}
+    E -- "No" --> C
+    E -- "Yes" --> F["Lesson-to-Quest Compiler"]
+    F --> G["Quest Files + Denial Tests + Boss Challenge"]
+    G --> H["Workbench Verification"]
+    H --> I["Dashboard Record"]
+    I --> J["Ship Gate"]
+    J --> K["JoyID Proof Envelope + Fiber Invoice Claim"]
 ```
 
 | Layer | Responsibility |

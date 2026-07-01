@@ -48,20 +48,46 @@ VibeQuest provides:
 
 ## 5. Clean Architectural Flow
 
-```text
-Learner Intent
-  -> profile, interests, goal, background, pace
-  -> AI Learning Engine
-  -> 5-module CKB/Fiber lesson path
-  -> checkpoint + tutor questions + notebook reflection
-  -> Lesson-to-Quest Compiler
-  -> CKB/Fiber generated quest files + denial tests + boss challenge
-  -> Workbench Verification
-  -> generated file checks + code tutor + boss answer
-  -> Dashboard Record
-  -> completed/incomplete lessons, quest history, questions, notes
-  -> Ship Gate
-  -> JoyID-bound proof envelope + Fiber invoice-bound reward claim
+```mermaid
+flowchart TD
+    A["Learner Intent"] --> B["Profile Setup<br/>Interests, goal, background, pace"]
+    B --> C["AI Learning Engine"]
+    C --> D["5-Module CKB/Fiber Lesson Path"]
+    D --> E["Interactive Checkpoint"]
+    D --> F["AI Tutor Questions"]
+    D --> G["Notebook Reflection"]
+    E --> H{"Checkpoint Passed?"}
+    H -- "No" --> D
+    H -- "Yes" --> I["Lesson-to-Quest Compiler"]
+    I --> J["Generated CKB/Fiber Quest Files"]
+    I --> K["Denial Tests"]
+    I --> L["Code-Specific Boss Challenge"]
+    J --> M["Workbench Verification"]
+    K --> M
+    L --> M
+    M --> N{"Files Checked + Boss Solved?"}
+    N -- "No" --> M
+    N -- "Yes" --> O["Dashboard Learning Record"]
+    O --> P["Ship Gate"]
+    P --> Q["JoyID-Bound Proof Envelope"]
+    P --> R["Fiber Invoice-Bound Reward Claim"]
+```
+
+The chart shows the intended product loop: users do not jump straight from AI output to rewards. They must learn, answer, inspect, verify, explain, and only then reach the ship gate.
+
+### Runtime Architecture Chart
+
+```mermaid
+flowchart LR
+    U["User Browser"] --> W["Next.js Frontend<br/>Learn, Workbench, Dashboard, Ship Gate"]
+    W --> J["JoyID / CCC<br/>Wallet Proof"]
+    W --> P["Next.js API Proxy"]
+    P --> C["vibequest-core<br/>Rust + Axum"]
+    C --> AI["OpenAI Responses API<br/>Lessons, Quests, Tutor"]
+    C --> DB[("MongoDB<br/>Users, Learning Sessions, Quest Runs, Rewards")]
+    C --> CKB["CKB RPC<br/>Readiness + CKB Context"]
+    C --> F["Fiber RPC<br/>Readiness + Invoice Claims"]
+    C --> W
 ```
 
 ### Runtime Components
