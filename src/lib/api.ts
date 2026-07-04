@@ -278,6 +278,10 @@ export type LearningTutorMessageDto = {
   text: string;
   why?: string | null;
   follow_up?: string | null;
+  module_id?: string | null;
+  module_title?: string | null;
+  lesson_id?: string | null;
+  lesson_title?: string | null;
   created_at: string;
 };
 

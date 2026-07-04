@@ -477,7 +477,7 @@ export function VibeQuestWorkbench() {
   }, []);
 
   const markCurrentPracticeRecord = useCallback(
-    (status: PracticeRecord["status"], options?: { shipped?: boolean; savedToCloud?: boolean }) => {
+    (status: PracticeRecord["status"], options?: { shipped?: boolean; savedToCloud?: boolean; bossFightSolved?: boolean }) => {
       if (!walletProof || !questData) {
         return;
       }
@@ -504,7 +504,7 @@ export function VibeQuestWorkbench() {
           completedAt,
           questSnapshot: questData,
           gates,
-          bossFightSolved,
+          bossFightSolved: options?.bossFightSolved ?? bossFightSolved,
           shipped: options?.shipped ?? shipped,
           buildRequest,
           skillTrack,
@@ -743,6 +743,10 @@ export function VibeQuestWorkbench() {
   );
 
   const handleBossAttempt = useCallback((attempt: BossAttemptRequest, solved: boolean) => {
+    if (solved) {
+      setBossFightSolved(true);
+    }
+
     setQuestData((previous) => {
       if (!previous) {
         return previous;
@@ -1292,7 +1296,7 @@ export function VibeQuestWorkbench() {
             bossFightSolved={bossFightSolved}
             shipped={shipped}
             onShip={() => setActiveTab("ship-gate")}
-            onChallengeComplete={() => markCurrentPracticeRecord("completed")}
+            onChallengeComplete={() => markCurrentPracticeRecord("completed", { bossFightSolved: true })}
             onBossAttempt={handleBossAttempt}
             onAskCodeTutor={handleAskCodeTutor}
             onWorkspaceVerified={() => markCurrentPracticeRecord("verified")}
@@ -2052,6 +2056,11 @@ function mapTutorMessage(message: LearningTutorMessageDto): TutorMessage {
     text: message.text,
     why: message.why ?? undefined,
     followUp: message.follow_up ?? undefined,
+    moduleId: message.module_id ?? undefined,
+    moduleTitle: message.module_title ?? undefined,
+    lessonId: message.lesson_id ?? undefined,
+    lessonTitle: message.lesson_title ?? undefined,
+    createdAt: message.created_at,
   };
 }
 
@@ -2062,6 +2071,10 @@ function mapTutorMessageDto(message: TutorMessage): LearningTutorMessageDto {
     text: message.text,
     why: message.why ?? null,
     follow_up: message.followUp ?? null,
+    module_id: message.moduleId ?? null,
+    module_title: message.moduleTitle ?? null,
+    lesson_id: message.lessonId ?? null,
+    lesson_title: message.lessonTitle ?? null,
     created_at: message.createdAt ?? stableTutorTimestamp(message.id),
   };
 }

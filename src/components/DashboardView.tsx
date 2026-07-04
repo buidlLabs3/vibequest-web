@@ -112,6 +112,73 @@ export default function DashboardView({
   const completedLessons = lessonRows.filter((row) => row.completed).length;
   const lessonCount = learningModule?.lessons.length ?? 0;
   const learnerQuestions = tutorMessages.filter((message) => message.role === "learner");
+  const activeLessonPassed = Boolean(activeLesson && checkpointAnswers[activeLesson.id] === activeLesson.checkpoint.correct_index);
+  const activeQuestIsCkbCells = Boolean(
+    questData &&
+      (questData.learningContext?.lesson_id?.startsWith("ckb-cells-") ||
+        questData.files.some((file) => `${file.path}\n${file.content}`.toLowerCase().includes("verifyckbcellproof"))),
+  );
+  const workspaceVerified = activeQuestIsCkbCells && Boolean(gates.find((gate) => gate.id === "verification")?.isCompleted);
+  const activePracticeRecord = activeQuestIsCkbCells && questData ? practiceRecords.find((record) => record.runId === questData.runId) : undefined;
+  const badgeRecorded = Boolean(
+    activePracticeRecord?.status === "completed" ||
+      activePracticeRecord?.status === "shipped" ||
+      bossFightSolved,
+  );
+  const ckbCellsPathActive = Boolean(
+    learningModule &&
+      (learningModule.title.toLowerCase().includes("ckb") ||
+        learningModule.lessons.some((lesson) => lesson.id.startsWith("ckb-cells-"))),
+  );
+  const prototypeAction = !ckbCellsPathActive
+    ? { label: "Open Learning", action: onOpenLearn }
+    : !activeLessonPassed
+      ? { label: "Pass Checkpoint", action: onOpenLearn }
+      : !activeQuestIsCkbCells
+        ? { label: "Generate Lesson Quest", action: onGenerateActiveLessonQuest }
+        : !workspaceVerified
+          ? { label: "Verify Workspace", action: onOpenWorkbench }
+          : !bossFightSolved
+            ? { label: "Solve Boss", action: onOpenWorkbench }
+            : { label: "Review Badge", action: onOpenWorkbench };
+  const prototypeSteps = [
+    {
+      label: "Reviewed CKB Cells path",
+      detail: ckbCellsPathActive ? learningModule?.title ?? "active" : "Start the flagship path",
+      done: ckbCellsPathActive,
+    },
+    {
+      label: "Checkpoint passed",
+      detail: activeLessonPassed ? activeLesson?.title ?? "lesson complete" : `${completedLessons}/${lessonCount} lessons passed`,
+      done: activeLessonPassed,
+    },
+    {
+      label: "Quest generated",
+      detail: activeQuestIsCkbCells ? questData?.questName ?? "CKB Cell verifier quest" : "Generate from the completed lesson",
+      done: activeQuestIsCkbCells,
+    },
+    {
+      label: "Workspace verified",
+      detail: workspaceVerified ? "Generated files passed proof/test/denial checks" : "Run generated file checks",
+      done: workspaceVerified,
+    },
+    {
+      label: "Boss and badge",
+      detail: badgeRecorded ? "Learning completion is recorded" : "Answer the code-specific boss challenge",
+      done: badgeRecorded,
+    },
+  ];
+  const openTutorMessage = (message: TutorMessage) => {
+    const index = lessonRows.findIndex((row) =>
+      (message.lessonId && row.lesson.id === message.lessonId) ||
+      (message.lessonTitle && row.lesson.title === message.lessonTitle),
+    );
+    if (index >= 0) {
+      onOpenLearningLesson(index);
+      return;
+    }
+    onOpenLearn();
+  };
   const completedPractice = practiceRecords.filter((record) => record.status === "completed" || record.status === "shipped").length;
   const localInProgress = practiceRecords.filter((record) => record.status !== "completed" && record.status !== "shipped").length;
   const questsStarted = Math.max(questStats.created, practiceRecords.length);
@@ -146,7 +213,7 @@ export default function DashboardView({
             Dashboard
           </h1>
           <p className="mt-1 max-w-xl text-sm text-on-surface-variant">
-            Your VibeQuest activity hub: wallet proof, quest run, generated workspace checks, and shipping state in one place.
+            Your learning ledger: lessons, checkpoint answers, generated quests, code verification, boss evidence, notes, and reward state in one place.
           </p>
         </div>
         <button
@@ -228,6 +295,36 @@ export default function DashboardView({
         </div>
       </div>
 
+      <section className="rounded-xl border border-cyber-green/20 bg-[#0F1915] p-5">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-cyber-green">End-to-end prototype loop</span>
+            <h2 className="mt-2 text-xl font-black tracking-tight text-white">CKB Cells learning loop</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-on-surface-variant">
+              This is the narrowed MVP reviewers can test: start the reviewed CKB Cells path, pass one checkpoint, generate the cell verifier quest, verify the generated files, solve the boss challenge, then revisit the record here.
+            </p>
+          </div>
+          <button
+            onClick={prototypeAction.action}
+            className="shrink-0 rounded-xl bg-cyber-green px-5 py-3 text-xs font-black uppercase tracking-wider text-black transition-all hover:brightness-110"
+          >
+            {prototypeAction.label}
+          </button>
+        </div>
+        <div className="mt-5 grid gap-3 md:grid-cols-5">
+          {prototypeSteps.map((step, index) => (
+            <div key={step.label} className={"rounded-lg border p-3 " + (step.done ? "border-cyber-green/25 bg-cyber-green/5" : "border-glass-border bg-[#0B0C0E]/70")}>
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-mono text-[10px] uppercase text-on-surface-variant">{index + 1}</span>
+                {step.done ? <CheckCircle className="h-4 w-4 text-cyber-green" /> : <Clock className="h-4 w-4 text-warning-amber" />}
+              </div>
+              <p className="mt-2 line-clamp-2 text-xs font-bold text-white">{step.label}</p>
+              <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-on-surface-variant">{step.detail}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
         <MetricCard
           icon={<GraduationCap className="h-5 w-5 text-electric-blue" />}
@@ -267,9 +364,9 @@ export default function DashboardView({
         />
         <MetricCard
           icon={<ReceiptText className="h-5 w-5 text-electric-blue" />}
-          label="Learning Records"
+          label="Practice Ledger"
           value={String(practiceRecords.length)}
-          detail={completedPractice > 0 ? `${completedPractice} completed practice runs` : "Local quest attempts appear here"}
+          detail={completedPractice > 0 ? `${completedPractice} completed practice runs` : "Generated quest attempts appear here"}
           ready={completedPractice > 0}
           actionLabel="Review"
           onAction={onOpenWorkbench}
@@ -365,11 +462,15 @@ export default function DashboardView({
               </div>
               <div className="flex max-h-[300px] flex-col gap-2 overflow-y-auto pr-1">
                 {learnerQuestions.length > 0 ? learnerQuestions.slice(0, 8).map((message) => (
-                  <div key={message.id} className="rounded-lg border border-electric-blue/20 bg-electric-blue/10 p-3">
-                    <span className="font-mono text-[10px] uppercase text-electric-blue">Question</span>
+                  <button key={message.id} onClick={() => openTutorMessage(message)} className="rounded-lg border border-electric-blue/20 bg-electric-blue/10 p-3 text-left transition-colors hover:border-electric-blue/50">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-mono text-[10px] uppercase text-electric-blue">Question</span>
+                      <span className="font-mono text-[10px] uppercase text-on-surface-variant">Open lesson</span>
+                    </div>
                     <p className="mt-1 text-xs leading-relaxed text-white">{message.text}</p>
-                    {message.createdAt ? <p className="mt-2 font-mono text-[10px] text-on-surface-variant">{new Date(message.createdAt).toLocaleString()}</p> : null}
-                  </div>
+                    <p className="mt-2 line-clamp-1 text-[11px] text-on-surface-variant">{message.lessonTitle ?? "Current learning path"}</p>
+                    {message.createdAt ? <p className="mt-1 font-mono text-[10px] text-on-surface-variant">{new Date(message.createdAt).toLocaleString()}</p> : null}
+                  </button>
                 )) : (
                   <div className="rounded-lg border border-dashed border-glass-border p-5 text-center text-xs text-on-surface-variant">
                     Questions you ask inside lessons will appear here for review.
@@ -539,7 +640,7 @@ export default function DashboardView({
 
           <div className="rounded-xl border border-glass-border bg-[#16181D] p-5">
             <div className="mb-4 flex items-center justify-between border-b border-glass-border pb-3">
-              <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Learning Records</h2>
+              <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Practice Quest Ledger</h2>
               <span className="font-mono text-xs text-on-surface-variant">{practiceRecords.length}</span>
             </div>
             {practiceRecords.length > 0 ? (
@@ -575,7 +676,7 @@ export default function DashboardView({
               </div>
             ) : (
               <div className="rounded-lg border border-dashed border-glass-border p-5 text-center text-xs text-on-surface-variant">
-                Generate, verify, and finish a quest to build your learning trail.
+                Generate a lesson-backed quest to build a reviewable learning trail.
               </div>
             )}
           </div>

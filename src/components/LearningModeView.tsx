@@ -22,6 +22,10 @@ type TutorMessage = {
   text: string;
   why?: string;
   followUp?: string;
+  moduleId?: string;
+  moduleTitle?: string;
+  lessonId?: string;
+  lessonTitle?: string;
   createdAt?: string;
 };
 
@@ -127,9 +131,14 @@ export default function LearningModeView({
     if (!response || !tutorQuestion.trim()) return;
 
     const createdAt = new Date().toISOString();
+    const lessonMetadata = module && activeLesson ? {
+      moduleTitle: module.title,
+      lessonId: activeLesson.id,
+      lessonTitle: activeLesson.title,
+    } : {};
     setTutorMessages([
       ...tutorMessages,
-      { id: `learner-${Date.now()}`, role: "learner", text: tutorQuestion.trim(), createdAt },
+      { id: `learner-${Date.now()}`, role: "learner", text: tutorQuestion.trim(), createdAt, ...lessonMetadata },
       {
         id: `mentor-${Date.now()}`,
         role: "mentor",
@@ -137,6 +146,7 @@ export default function LearningModeView({
         why: response.why_it_matters,
         followUp: response.follow_up_question,
         createdAt,
+        ...lessonMetadata,
       },
     ]);
     setTutorQuestion("");
