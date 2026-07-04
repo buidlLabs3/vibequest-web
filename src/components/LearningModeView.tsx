@@ -202,8 +202,18 @@ export default function LearningModeView({
                 className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-electric-blue px-4 py-3 text-xs font-black uppercase tracking-wider text-black transition-all hover:brightness-110 disabled:brightness-50"
               >
                 {generating ? <RefreshCw className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-                Generate AI CKB Cells Path
+                {generating ? "Generating AI Path" : "Generate AI CKB Cells Path"}
               </button>
+              {error ? (
+                <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs leading-relaxed text-red-300">
+                  {error}
+                </div>
+              ) : null}
+              {warning ? (
+                <div className="mt-3 rounded-lg border border-warning-amber/30 bg-warning-amber/10 p-3 text-xs leading-relaxed text-warning-amber">
+                  {warning}
+                </div>
+              ) : null}
             </div>
           </section>
 
@@ -267,8 +277,6 @@ export default function LearningModeView({
                 {generating ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                 Generate Custom Learning Path
               </button>
-              {warning ? <div className="rounded-lg border border-warning-amber/30 bg-warning-amber/10 p-3 text-xs leading-relaxed text-warning-amber">{warning}</div> : null}
-              {error ? <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">{error}</div> : null}
             </div>
           </section>
 
