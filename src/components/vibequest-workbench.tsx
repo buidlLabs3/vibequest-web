@@ -611,7 +611,7 @@ export function VibeQuestWorkbench() {
       setCheckpointAnswers({});
       setTutorMessages([]);
       lastSavedLearningSnapshotRef.current = null;
-      setLearningWarning("Your saved learning path used the old lightweight lesson format. Generate a fresh OpenAI-authored path.");
+      setLearningWarning("Your saved learning path used a removed static lesson format, so VibeQuest cleared it. Generate a fresh AI-authored path.");
       setLearningSyncState("idle");
       return;
     }
@@ -958,11 +958,15 @@ export function VibeQuestWorkbench() {
     setPendingLearningQuestContext(null);
 
     const canonicalCellsPath = pathId === "ckb-cells";
-    const requestInterests = canonicalCellsPath ? ["CKB Cells"] : selectedInterests;
+    const requestInterests = canonicalCellsPath
+      ? Array.from(new Set([...selectedInterests, "CKB Cells", "CKB Foundations"]))
+      : selectedInterests;
     const requestGoal = canonicalCellsPath
-      ? "Understand CKB cells well enough to explain cell state, OutPoints, scripts, witnesses, transaction trust boundaries, and prepare a verifier quest."
+      ? learnerGoal.trim().length >= 8
+        ? learnerGoal
+        : "Generate a fresh CKB Cells learning module with code lenses, checkpoint reasoning, denial tests, and quest handoff."
       : learnerGoal;
-    const requestPace = canonicalCellsPath ? "Focused" : learningPace;
+    const requestPace = learningPace;
 
     try {
       const response = await generateLearningModule({
@@ -1600,6 +1604,10 @@ function parseLearningSession(value: string | null): LearningSession | null {
 
 function isLegacyLearningModule(module: LearningModuleDto, source: QuestSource): boolean {
   if (source === "core-fallback") {
+    return true;
+  }
+
+  if (module.lessons.some((lesson) => lesson.id.startsWith("ckb-cells-lesson-"))) {
     return true;
   }
 

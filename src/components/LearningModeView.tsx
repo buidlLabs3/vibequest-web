@@ -113,48 +113,7 @@ export default function LearningModeView({
     return module.lessons.filter((lesson) => checkpointAnswers[lesson.id] === lesson.checkpoint.correct_index).length;
   }, [checkpointAnswers, module]);
   const progress = module ? Math.round((completedLessons / module.lessons.length) * 100) : 0;
-  const activeLessonTutorCount = activeLesson
-    ? tutorMessages.filter((message) =>
-        message.lessonId === activeLesson.id || message.lessonTitle === activeLesson.title,
-      ).length
-    : 0;
-  const activeLessonPrimaryConcept = activeLesson?.concepts[0] ?? "trust boundary";
-  const activeLessonSecondaryConcept = activeLesson?.concepts[1] ?? "denial test";
-  const activeQuestBridge = activeLesson ? activeLesson.quest_bridge || module?.capstone_quest_prompt || "Generate a verifier quest from this lesson." : "";
-  const lessonEvidenceCards = activeLesson ? [
-    {
-      label: "State model",
-      detail: `Name ${activeLessonPrimaryConcept} and ${activeLessonSecondaryConcept}, then connect them to ${activeLesson.title}.`,
-      status: "Studying",
-      done: true,
-    },
-    {
-      label: "Checkpoint proof",
-      detail: checkpointPassed
-        ? `Passed: ${activeLesson.checkpoint.follow_up_question}`
-        : checkpointAnswered
-          ? `Revise this: ${activeLesson.checkpoint.explanation}`
-          : `Answer this: ${activeLesson.checkpoint.question}`,
-      status: checkpointPassed ? "Passed" : checkpointAnswered ? "Needs proof" : "Open",
-      done: checkpointPassed,
-    },
-    {
-      label: "Tutor trail",
-      detail: activeLessonTutorCount > 0
-        ? `${activeLessonTutorCount} lesson-linked tutor message${activeLessonTutorCount === 1 ? "" : "s"} saved for review.`
-        : `Ask about ${activeLessonPrimaryConcept}, the code lens, or the denial case you would write.`,
-      status: activeLessonTutorCount > 0 ? "Saved" : "Optional",
-      done: activeLessonTutorCount > 0,
-    },
-    {
-      label: "Quest handoff",
-      detail: checkpointPassed
-        ? `Ready to generate: ${activeQuestBridge}`
-        : `Unlocks after the correct checkpoint answer: ${activeQuestBridge}`,
-      status: checkpointPassed ? "Ready" : "Checkpoint required",
-      done: checkpointPassed,
-    },
-  ] : [];
+
 
   const toggleInterest = (interest: string) => {
     if (selectedInterests.includes(interest)) {
@@ -229,28 +188,21 @@ export default function LearningModeView({
           <section className="rounded-xl border border-electric-blue/30 bg-[#121820] p-5">
             <div className="mb-4 flex items-center gap-2 border-b border-glass-border pb-3">
               <BookOpen className="h-5 w-5 text-electric-blue" />
-              <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Flagship Path</h2>
+              <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Focused AI Path</h2>
             </div>
             <div className="rounded-lg border border-electric-blue/25 bg-electric-blue/10 p-4">
-              <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-electric-blue">Reviewed CKB Cells Path</span>
-              <h3 className="mt-2 text-lg font-black tracking-tight text-white">Understanding CKB Cells</h3>
+              <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-electric-blue">CKB Cells Focus</span>
+              <h3 className="mt-2 text-lg font-black tracking-tight text-white">Generate Fresh Lessons</h3>
               <p className="mt-2 text-xs leading-relaxed text-on-surface-variant">
-                One complete loop: cells as state, OutPoints, scripts, witnesses, transaction trust boundaries, then a verifier quest bridge.
+                Requests a new AI-authored CKB Cells module from your background, goal, and pace. VibeQuest only loads the module after the AI returns complete lessons, code lenses, checkpoint answers, and quest bridges.
               </p>
-              <div className="mt-3 grid gap-2 text-[11px] leading-relaxed text-on-surface-variant">
-                <span>1. Cells as consumed and recreated state</span>
-                <span>2. OutPoints and cell lineage</span>
-                <span>3. Lock scripts, type scripts, and witnesses</span>
-                <span>4. Transaction structure and local verifier boundaries</span>
-                <span>5. Cell model to verifier quest preparation</span>
-              </div>
               <button
                 onClick={() => onGenerateModule(FEATURED_PATH_ID)}
                 disabled={generating}
                 className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-electric-blue px-4 py-3 text-xs font-black uppercase tracking-wider text-black transition-all hover:brightness-110 disabled:brightness-50"
               >
                 {generating ? <RefreshCw className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-                Start CKB Cells Path
+                Generate AI CKB Cells Path
               </button>
             </div>
           </section>
@@ -354,22 +306,6 @@ export default function LearningModeView({
         <main className="flex flex-col gap-6">
           {module && activeLesson ? (
             <>
-              <section className="rounded-xl border border-glass-border bg-[#16181D] p-4">
-                <div className="grid gap-3 md:grid-cols-4">
-                  {lessonEvidenceCards.map((step, index) => (
-                    <div key={step.label} className={"rounded-lg border p-3 " + (step.done ? "border-cyber-green/25 bg-cyber-green/5" : "border-glass-border bg-[#0B0C0E]/70")}>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-mono text-[10px] uppercase text-on-surface-variant">{index + 1}. {step.label}</span>
-                        <span className={"rounded border px-2 py-0.5 font-mono text-[9px] uppercase " + (step.done ? "border-cyber-green/20 bg-cyber-green/10 text-cyber-green" : "border-warning-amber/20 bg-warning-amber/10 text-warning-amber")}>
-                          {step.status}
-                        </span>
-                      </div>
-                      <p className="mt-2 line-clamp-3 text-xs font-bold leading-relaxed text-white">{step.detail}</p>
-                    </div>
-                  ))}
-                </div>
-              </section>
-
               <section className="rounded-xl border border-electric-blue/20 bg-[#121820] p-6">
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                   <div>

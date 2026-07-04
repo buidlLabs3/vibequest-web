@@ -143,8 +143,8 @@ export default function DashboardView({
             : { label: "Review Badge", action: onOpenWorkbench };
   const prototypeSteps = [
     {
-      label: "Reviewed CKB Cells path",
-      detail: ckbCellsPathActive ? learningModule?.title ?? "active" : "Start the flagship path",
+      label: "AI learning path",
+      detail: ckbCellsPathActive ? learningModule?.title ?? "active" : "Generate a fresh lesson path",
       done: ckbCellsPathActive,
     },
     {
