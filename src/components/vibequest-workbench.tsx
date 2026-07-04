@@ -31,6 +31,7 @@ import {
   type HealthResponse,
   type LearningModuleDto,
   type LearningQuestLink,
+  type QuestSource,
   type LearningSessionRecord,
   type LearningTutorMessageDto,
   type QuestRunRecord,
@@ -141,7 +142,7 @@ export function VibeQuestWorkbench() {
   const [learningGenerating, setLearningGenerating] = useState(false);
   const [learningError, setLearningError] = useState<string | null>(null);
   const [learningWarning, setLearningWarning] = useState<string | null>(null);
-  const [learningSource, setLearningSource] = useState<"open-ai" | "core-fallback">("open-ai");
+  const [learningSource, setLearningSource] = useState<QuestSource>("open-ai");
   const [selectedInterests, setSelectedInterests] = useState<string[]>(["CKB Foundations", "Fiber Payments"]);
   const [learnerGoal, setLearnerGoal] = useState("Teach me CKB/Fiber well enough to understand generated code, explain the trust boundary, and complete practical quests.");
   const [learnerBackground, setLearnerBackground] = useState("Vibecoder");
@@ -943,7 +944,7 @@ export function VibeQuestWorkbench() {
     [applyQuestRun, bossFightSolved, gates, loadQuestHistory, markCurrentPracticeRecord, questData?.runId, walletProof],
   );
 
-  const handleGenerateLearningModule = useCallback(async () => {
+  const handleGenerateLearningModule = useCallback(async (pathId?: string) => {
     setLearningGenerating(true);
     setLearningError(null);
     setLearningWarning(null);
@@ -952,13 +953,26 @@ export function VibeQuestWorkbench() {
     setActiveLessonIndex(0);
     setPendingLearningQuestContext(null);
 
+    const canonicalCellsPath = pathId === "ckb-cells";
+    const requestInterests = canonicalCellsPath ? ["CKB Cells"] : selectedInterests;
+    const requestGoal = canonicalCellsPath
+      ? "Understand CKB cells well enough to explain cell state, OutPoints, scripts, witnesses, transaction trust boundaries, and prepare a verifier quest."
+      : learnerGoal;
+    const requestPace = canonicalCellsPath ? "Focused" : learningPace;
+
     try {
       const response = await generateLearningModule({
-        interests: selectedInterests,
-        learner_goal: learnerGoal,
+        path_id: pathId ?? null,
+        interests: requestInterests,
+        learner_goal: requestGoal,
         background: learnerBackground,
-        pace: learningPace,
+        pace: requestPace,
       });
+      if (canonicalCellsPath) {
+        setSelectedInterests(requestInterests);
+        setLearnerGoal(requestGoal);
+        setLearningPace(requestPace);
+      }
       setLearningModuleId(response.module_id);
       setLearningModule(response.module);
       setLearningSource(response.source);
@@ -1530,7 +1544,7 @@ function parseNotebookEntries(value: string | null): NotebookEntry[] {
 
 type LearningSession = {
   moduleId?: string | null;
-  source: "open-ai" | "core-fallback";
+  source: QuestSource;
   module: LearningModuleDto;
   selectedInterests: string[];
   learnerGoal: string;
@@ -1543,8 +1557,12 @@ type LearningSession = {
 };
 
 
-function parseQuestSource(value: unknown): "open-ai" | "core-fallback" {
-  return value === "core-fallback" ? "core-fallback" : "open-ai";
+function parseQuestSource(value: unknown): QuestSource {
+  if (value === "core-fallback" || value === "reviewed-path") {
+    return value;
+  }
+
+  return "open-ai";
 }
 
 function parseLearningSession(value: string | null): LearningSession | null {
@@ -1576,7 +1594,7 @@ function parseLearningSession(value: string | null): LearningSession | null {
   return null;
 }
 
-function isLegacyLearningModule(module: LearningModuleDto, source: "open-ai" | "core-fallback"): boolean {
+function isLegacyLearningModule(module: LearningModuleDto, source: QuestSource): boolean {
   if (source === "core-fallback") {
     return true;
   }

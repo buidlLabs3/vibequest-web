@@ -1,5 +1,5 @@
 export type Difficulty = "novice" | "builder" | "boss";
-export type QuestSource = "open-ai" | "core-fallback";
+export type QuestSource = "open-ai" | "core-fallback" | "reviewed-path";
 
 export type QuestBlueprint = {
   title: string;
@@ -242,6 +242,7 @@ export type LearningModuleDto = {
 };
 
 export type GenerateLearningModuleRequest = {
+  path_id?: string | null;
   interests: string[];
   learner_goal: string;
   background: string;

@@ -48,11 +48,13 @@ interface LearningModeViewProps {
   setTutorMessages: (messages: TutorMessage[]) => void;
   tutorQuestion: string;
   setTutorQuestion: (question: string) => void;
-  onGenerateModule: () => Promise<void>;
+  onGenerateModule: (pathId?: string) => Promise<void>;
   onAskTutor: () => Promise<LearningTutorResponse | null>;
   onStartLessonQuest: (prompt: string) => void;
   canStartLessonQuest: boolean;
 }
+
+const FEATURED_PATH_ID = "ckb-cells";
 
 const INTERESTS = [
   { id: "ckb-foundations", label: "CKB Foundations", detail: "Cells, scripts, witnesses, transactions" },
@@ -172,10 +174,39 @@ export default function LearningModeView({
 
       <div className="grid grid-cols-1 gap-8 xl:grid-cols-[420px_1fr]">
         <aside className="flex flex-col gap-6">
+          <section className="rounded-xl border border-electric-blue/30 bg-[#121820] p-5">
+            <div className="mb-4 flex items-center gap-2 border-b border-glass-border pb-3">
+              <BookOpen className="h-5 w-5 text-electric-blue" />
+              <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Flagship Path</h2>
+            </div>
+            <div className="rounded-lg border border-electric-blue/25 bg-electric-blue/10 p-4">
+              <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-electric-blue">Reviewed CKB Cells Path</span>
+              <h3 className="mt-2 text-lg font-black tracking-tight text-white">Understanding CKB Cells</h3>
+              <p className="mt-2 text-xs leading-relaxed text-on-surface-variant">
+                One complete loop: cells as state, OutPoints, scripts, witnesses, transaction trust boundaries, then a verifier quest bridge.
+              </p>
+              <div className="mt-3 grid gap-2 text-[11px] leading-relaxed text-on-surface-variant">
+                <span>1. Cells as consumed and recreated state</span>
+                <span>2. OutPoints and cell lineage</span>
+                <span>3. Lock scripts, type scripts, and witnesses</span>
+                <span>4. Transaction structure and local verifier boundaries</span>
+                <span>5. Cell model to verifier quest preparation</span>
+              </div>
+              <button
+                onClick={() => onGenerateModule(FEATURED_PATH_ID)}
+                disabled={generating}
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-electric-blue px-4 py-3 text-xs font-black uppercase tracking-wider text-black transition-all hover:brightness-110 disabled:brightness-50"
+              >
+                {generating ? <RefreshCw className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+                Start CKB Cells Path
+              </button>
+            </div>
+          </section>
+
           <section className="rounded-xl border border-glass-border bg-[#16181D] p-5">
             <div className="mb-4 flex items-center gap-2 border-b border-glass-border pb-3">
               <Target className="h-5 w-5 text-electric-blue" />
-              <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Learner Profile</h2>
+              <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Custom Learner Profile</h2>
             </div>
 
             <div className="grid gap-3">
@@ -225,12 +256,12 @@ export default function LearningModeView({
               </div>
 
               <button
-                onClick={onGenerateModule}
+                onClick={() => onGenerateModule()}
                 disabled={generating || (selectedInterests.length === 0 && learnerGoal.trim().length < 8)}
                 className="flex items-center justify-center gap-2 rounded-xl bg-cyber-green px-5 py-3 text-sm font-black uppercase tracking-wider text-black transition-all hover:brightness-110 disabled:brightness-50"
               >
                 {generating ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                Generate Learning Path
+                Generate Custom Learning Path
               </button>
               {warning ? <div className="rounded-lg border border-warning-amber/30 bg-warning-amber/10 p-3 text-xs leading-relaxed text-warning-amber">{warning}</div> : null}
               {error ? <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">{error}</div> : null}
