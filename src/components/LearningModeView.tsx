@@ -113,6 +113,48 @@ export default function LearningModeView({
     return module.lessons.filter((lesson) => checkpointAnswers[lesson.id] === lesson.checkpoint.correct_index).length;
   }, [checkpointAnswers, module]);
   const progress = module ? Math.round((completedLessons / module.lessons.length) * 100) : 0;
+  const activeLessonTutorCount = activeLesson
+    ? tutorMessages.filter((message) =>
+        message.lessonId === activeLesson.id || message.lessonTitle === activeLesson.title,
+      ).length
+    : 0;
+  const activeLessonPrimaryConcept = activeLesson?.concepts[0] ?? "trust boundary";
+  const activeLessonSecondaryConcept = activeLesson?.concepts[1] ?? "denial test";
+  const activeQuestBridge = activeLesson ? activeLesson.quest_bridge || module?.capstone_quest_prompt || "Generate a verifier quest from this lesson." : "";
+  const lessonEvidenceCards = activeLesson ? [
+    {
+      label: "State model",
+      detail: `Name ${activeLessonPrimaryConcept} and ${activeLessonSecondaryConcept}, then connect them to ${activeLesson.title}.`,
+      status: "Studying",
+      done: true,
+    },
+    {
+      label: "Checkpoint proof",
+      detail: checkpointPassed
+        ? `Passed: ${activeLesson.checkpoint.follow_up_question}`
+        : checkpointAnswered
+          ? `Revise this: ${activeLesson.checkpoint.explanation}`
+          : `Answer this: ${activeLesson.checkpoint.question}`,
+      status: checkpointPassed ? "Passed" : checkpointAnswered ? "Needs proof" : "Open",
+      done: checkpointPassed,
+    },
+    {
+      label: "Tutor trail",
+      detail: activeLessonTutorCount > 0
+        ? `${activeLessonTutorCount} lesson-linked tutor message${activeLessonTutorCount === 1 ? "" : "s"} saved for review.`
+        : `Ask about ${activeLessonPrimaryConcept}, the code lens, or the denial case you would write.`,
+      status: activeLessonTutorCount > 0 ? "Saved" : "Optional",
+      done: activeLessonTutorCount > 0,
+    },
+    {
+      label: "Quest handoff",
+      detail: checkpointPassed
+        ? `Ready to generate: ${activeQuestBridge}`
+        : `Unlocks after the correct checkpoint answer: ${activeQuestBridge}`,
+      status: checkpointPassed ? "Ready" : "Checkpoint required",
+      done: checkpointPassed,
+    },
+  ] : [];
 
   const toggleInterest = (interest: string) => {
     if (selectedInterests.includes(interest)) {
@@ -298,7 +340,7 @@ export default function LearningModeView({
                     >
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-xs font-bold text-white">{index + 1}. {lesson.title}</span>
-                        <span className="font-mono text-[10px] uppercase text-on-surface-variant">{completed ? "passed" : attempted ? "review" : selected ? "active" : "locked-in"}</span>
+                        <span className="font-mono text-[10px] uppercase text-on-surface-variant">{completed ? "passed" : attempted ? "needs proof" : selected ? "studying" : "up next"}</span>
                       </div>
                       <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-on-surface-variant">{lesson.why_it_matters}</p>
                     </button>
@@ -314,15 +356,15 @@ export default function LearningModeView({
             <>
               <section className="rounded-xl border border-glass-border bg-[#16181D] p-4">
                 <div className="grid gap-3 md:grid-cols-4">
-                  {[
-                    { label: "Learn", detail: "Read the explainer", done: true },
-                    { label: "Check", detail: checkpointPassed ? "Checkpoint passed" : checkpointAnswered ? "Review feedback" : "Answer checkpoint", done: checkpointPassed },
-                    { label: "Ask", detail: tutorMessages.length > 0 ? "Tutor used" : "Clarify confusion", done: tutorMessages.length > 0 },
-                    { label: "Practice", detail: checkpointPassed ? "Quest unlocked" : "Locked", done: checkpointPassed },
-                  ].map((step, index) => (
+                  {lessonEvidenceCards.map((step, index) => (
                     <div key={step.label} className={"rounded-lg border p-3 " + (step.done ? "border-cyber-green/25 bg-cyber-green/5" : "border-glass-border bg-[#0B0C0E]/70")}>
-                      <span className="font-mono text-[10px] uppercase text-on-surface-variant">{index + 1}. {step.label}</span>
-                      <p className="mt-1 text-xs font-bold text-white">{step.detail}</p>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-[10px] uppercase text-on-surface-variant">{index + 1}. {step.label}</span>
+                        <span className={"rounded border px-2 py-0.5 font-mono text-[9px] uppercase " + (step.done ? "border-cyber-green/20 bg-cyber-green/10 text-cyber-green" : "border-warning-amber/20 bg-warning-amber/10 text-warning-amber")}>
+                          {step.status}
+                        </span>
+                      </div>
+                      <p className="mt-2 line-clamp-3 text-xs font-bold leading-relaxed text-white">{step.detail}</p>
                     </div>
                   ))}
                 </div>
