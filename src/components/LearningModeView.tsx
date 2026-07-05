@@ -51,7 +51,7 @@ interface LearningModeViewProps {
   setTutorQuestion: (question: string) => void;
   onGenerateModule: (pathId?: string) => Promise<void>;
   onAskTutor: (question?: string) => Promise<LearningTutorResponse | null>;
-  onStartLessonQuest: (prompt: string) => void;
+  onStartLessonQuest: (prompt: string) => void | Promise<void>;
   canStartLessonQuest: boolean;
 }
 

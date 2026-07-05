@@ -852,7 +852,7 @@ export function VibeQuestWorkbench() {
   }, [learningModule]);
 
   const handleGenerateQuest = useCallback(
-    async (request: string, track: string, rawDifficulty: string) => {
+    async (request: string, track: string, rawDifficulty: string, learningContextOverride?: LearningQuestLink | null) => {
       setGenerationError(null);
       setShipError(null);
 
@@ -876,12 +876,13 @@ export function VibeQuestWorkbench() {
       );
 
       try {
+        const activeLearningContext = learningContextOverride ?? pendingLearningQuestContext;
         const response = await generateQuest({
           build_prompt: request,
           skill_track: track,
           difficulty: normalizeDifficulty(rawDifficulty),
           wallet: walletProof,
-          learning_context: pendingLearningQuestContext,
+          learning_context: activeLearningContext,
         });
         const mappedQuest = mapQuestResponse(response);
         setQuestData(mappedQuest);
@@ -1106,7 +1107,7 @@ export function VibeQuestWorkbench() {
     }
   }, [activeLessonIndex, applyLearningSession, checkpointAnswers, learningModule, tutorQuestion, walletProof]);
 
-  const handleStartLessonQuest = useCallback((prompt: string) => {
+  const handleStartLessonQuest = useCallback(async (prompt: string) => {
     const lesson = learningModule?.lessons[activeLessonIndex];
     if (!learningModule || !lesson) {
       return;
@@ -1119,38 +1120,53 @@ export function VibeQuestWorkbench() {
       return;
     }
 
+    const correctOption = lesson.checkpoint.options[lesson.checkpoint.correct_index];
     const wrongGaps = lesson.checkpoint.options
       .filter((_, index) => index !== lesson.checkpoint.correct_index)
       .map((option) => option.feedback)
       .slice(0, 2)
       .join(" ");
+    const lessonSummary = lesson.explanation.split("Code lens:")[0]?.trim() ?? lesson.why_it_matters;
     const questPrompt = [
       prompt.trim() || learningModule.capstone_quest_prompt,
+      `Generate a code quest directly from this completed lesson, not a generic challenge.`,
       `Learning source: ${learningModule.title} / ${lesson.title}.`,
       `Learner goal: ${learnerGoal}.`,
       `Concepts to practice: ${lesson.concepts.join(", ")}.`,
       `Checkpoint they passed: ${lesson.checkpoint.question}`,
+      `Correct understanding: ${correctOption?.label ?? lesson.checkpoint.explanation}`,
       `Make the boss challenge test this exact misunderstanding: ${wrongGaps || lesson.checkpoint.explanation}`,
+      `Code clarity requirement: include a small verifier, denial-oriented test file, and an invariant a learner can explain from the generated code.`,
     ].filter(Boolean).join(" ");
-
-    setBuildRequest(questPrompt);
-    setPendingLearningQuestContext({
+    const learningContext: LearningQuestLink = {
       module_id: learningModuleId ?? learningModule.title,
       lesson_id: lesson.id,
       module_title: learningModule.title,
       lesson_title: lesson.title,
       checkpoint_question: lesson.checkpoint.question,
-    });
-    setSkillTrack(
-      selectedInterests.some((interest) => interest.toLowerCase().includes("fiber"))
-        ? "Fiber Builder"
-        : "CKB Fundamentals",
-    );
+      quest_bridge: lesson.quest_bridge,
+      concepts: lesson.concepts,
+      correct_answer: correctOption?.label ?? lesson.checkpoint.explanation,
+      misunderstanding: wrongGaps || lesson.checkpoint.explanation,
+      lesson_summary: lessonSummary,
+    };
+    const track = selectedInterests.some((interest) => interest.toLowerCase().includes("fiber"))
+      ? "Fiber Builder"
+      : "CKB Fundamentals";
+
+    setBuildRequest(questPrompt);
+    setPendingLearningQuestContext(learningContext);
+    setSkillTrack(track);
     setDifficulty("BUILDER");
     setGenerationError(null);
     setLearningError(null);
     setActiveTab("quest-run");
-  }, [activeLessonIndex, checkpointAnswers, learnerGoal, learningModule, learningModuleId, selectedInterests]);
+
+    const generated = await handleGenerateQuest(questPrompt, track, "BUILDER", learningContext);
+    if (generated) {
+      setActiveTab("workbench");
+    }
+  }, [activeLessonIndex, checkpointAnswers, handleGenerateQuest, learnerGoal, learningModule, learningModuleId, selectedInterests]);
 
   const handleAskCodeTutor = useCallback(async (question: string, activeQuest: QuestData) => {
     const response = await askCodeTutor({

@@ -1,11 +1,11 @@
 import {
   Terminal as TermIcon,
-  Sliders,
   Play,
-  ChevronRight,
   RefreshCw,
   Cpu,
   AlertCircle,
+  BookOpenCheck,
+  WandSparkles,
 } from "lucide-react";
 
 interface QuestRunViewProps {
@@ -23,6 +23,24 @@ interface QuestRunViewProps {
   onClearLearningQuest?: () => void;
 }
 
+const CUSTOM_STARTERS = [
+  {
+    label: "Fiber verifier",
+    prompt: "Generate a Fiber receipt verifier with one passing test and two denial tests for replayed nonce and mismatched resourceId.",
+    track: "Fiber Builder",
+  },
+  {
+    label: "CKB cell verifier",
+    prompt: "Generate a CKB cell verifier that binds OutPoint, cell data hash, lock/type scripts, witness, and rejects a mutated cell reference.",
+    track: "CKB Fundamentals",
+  },
+  {
+    label: "Audit challenge",
+    prompt: "Generate a CKB/Fiber audit quest that exposes one realistic replay or witness mismatch bug and teaches the patch through tests.",
+    track: "AI Discipline",
+  },
+];
+
 export default function QuestRunView({
   onGenerateQuest,
   generating,
@@ -37,83 +55,11 @@ export default function QuestRunView({
   learningQuestOrigin,
   onClearLearningQuest,
 }: QuestRunViewProps) {
-
-  const learnerPaths = [
-    {
-      role: "Builder",
-      outcome: "Ship safer CKB/Fiber code",
-      prompt: "Build a Fiber payment flow with CKB witness checks, then teach me the exact trust boundary and the denial test that proves it is safe.",
-      track: "Fiber Builder",
-    },
-    {
-      role: "Auditor",
-      outcome: "Find replay and mismatch bugs",
-      prompt: "Generate a CKB/Fiber verifier with one realistic replay or mismatched-witness risk, then make the challenge teach me how to detect and patch it.",
-      track: "CKB Fundamentals",
-    },
-    {
-      role: "Product / Community",
-      outcome: "Understand without writing everything",
-      prompt: "Create a non-trivial CKB/Fiber quest that explains what the code enables, what can go wrong, and how a community/product lead should evaluate the risk.",
-      track: "AI Discipline",
-    },
-    {
-      role: "Researcher",
-      outcome: "Map protocol concepts to code",
-      prompt: "Turn a CKB cell/script/witness or Fiber PTLC/channel-state concept into a compact code quest with references, invariants, and a failure case.",
-      track: "CKB Fundamentals",
-    },
-  ];
-
-  const promptBlocks = [
-    {
-      category: "Trust Boundaries",
-      items: [
-        "Bind receipt proof to reader, content, run id, and CKB cell",
-        "Reject stale Fiber channel state or replayed PTLC proofs",
-        "Explain what is checked locally versus proven by CKB witness data",
-      ]
-    },
-    {
-      category: "Economic Logic",
-      items: [
-        "Verify xUDT payout split and rounding behavior",
-        "Check creator, sponsor, and protocol fee recipients",
-        "Prevent over-claiming from active channel balance transitions",
-      ]
-    },
-    {
-      category: "Learning Challenge",
-      items: [
-        "Ask a code-specific boss question with wrong answers that teach",
-        "Include a denial test that mutates the exact trusted field",
-        "Explain the generated code for a non-engineer and an engineer",
-      ]
-    }
-  ];
-
-  const applyLearnerPath = (path: (typeof learnerPaths)[number]) => {
-    onClearLearningQuest?.();
-    setSkillTrack(path.track);
-    setBuildRequest(path.prompt);
-  };
-
-  const handleStitchPrompt = (blockText: string) => {
-    if (buildRequest.trim() === "") {
-      onClearLearningQuest?.();
-      setBuildRequest(`Build ${blockText.toLowerCase()}`);
-    } else {
-      onClearLearningQuest?.();
-      setBuildRequest(`${buildRequest.trim()} and ${blockText.toLowerCase()}`);
-    }
-  };
-
   const learningOnlyRequest = isLearningOnlyRequest(buildRequest);
+  const hasLessonQuest = Boolean(learningQuestOrigin);
 
   const handleLaunchQuest = async () => {
-    if (learningOnlyRequest) {
-      return;
-    }
+    if (learningOnlyRequest) return;
 
     const generated = await onGenerateQuest(buildRequest, skillTrack, difficulty);
     if (generated) {
@@ -121,172 +67,154 @@ export default function QuestRunView({
     }
   };
 
+  const applyStarter = (starter: (typeof CUSTOM_STARTERS)[number]) => {
+    onClearLearningQuest?.();
+    setBuildRequest(starter.prompt);
+    setSkillTrack(starter.track);
+    setDifficulty("BUILDER");
+  };
+
   return (
-    <div className="bg-[#0B0C0E] text-on-surface font-sans p-4 md:p-8 max-w-7xl mx-auto flex flex-col gap-8 min-h-screen">
-      {/* View Header */}
+    <div className="mx-auto flex min-h-screen max-w-6xl flex-col gap-7 bg-[#0B0C0E] p-4 font-sans text-on-surface md:p-8">
       <div className="border-b border-glass-border pb-6">
-        <h1 className="text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
-          <Cpu className="text-electric-blue w-8 h-8 animate-pulse" />
-          Quest Compiler Dashboard
+        <h1 className="flex items-center gap-3 text-3xl font-extrabold tracking-tight text-white">
+          <Cpu className="h-8 w-8 text-electric-blue" />
+          Code Quest
         </h1>
-        <p className="text-on-surface-variant text-sm mt-1 max-w-xl">
-          Start from the learner&apos;s role, then generate a code-aware quest with explanations, failure cases, and a boss challenge tied to the generated files.
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-on-surface-variant">
+          Turn completed lessons into generated verifier code, denial tests, and a boss challenge that opens in Workbench with code explanations.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* LEFT COLUMN: BUILDER BLOCKS (span 5) */}
-        <div className="lg:col-span-5 flex flex-col gap-6">
-          <div className="bg-[#16181D] border border-glass-border rounded-xl p-5 flex flex-col gap-5">
-            <div className="flex items-center gap-2 border-b border-glass-border pb-3">
-              <Sliders className="text-electric-blue w-5 h-5" />
-              <h2 className="text-sm font-mono font-bold uppercase tracking-wider text-white">
-                Learner Intent
-              </h2>
-            </div>
-
-            <div className="grid gap-3">
-              {learnerPaths.map((path) => (
-                <button
-                  key={path.role}
-                  onClick={() => applyLearnerPath(path)}
-                  className="rounded-lg border border-glass-border/70 bg-[#0B0C0E]/60 p-4 text-left transition-colors hover:border-electric-blue/40 hover:bg-[#1C1F26]"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-sm font-bold text-white">{path.role}</span>
-                    <ChevronRight className="h-4 w-4 text-electric-blue" />
-                  </div>
-                  <p className="mt-1 text-xs leading-relaxed text-on-surface-variant">{path.outcome}</p>
-                </button>
-              ))}
-            </div>
-
-            <div className="border-t border-glass-border pt-4">
-              <h3 className="font-mono text-[10px] font-bold uppercase tracking-wider text-electric-blue">Deepen the quest</h3>
-            </div>
-
-            <div className="flex flex-col gap-5 max-h-[360px] overflow-y-auto pr-1">
-              {promptBlocks.map((cat, idx) => (
-                <div key={idx} className="flex flex-col gap-2.5">
-                  <span className="font-mono text-[10px] text-electric-blue uppercase tracking-wider font-bold">
-                    {cat.category}
-                  </span>
-                  <div className="flex flex-col gap-2">
-                    {cat.items.map((item, itemIdx) => (
-                      <button
-                        key={itemIdx}
-                        onClick={() => handleStitchPrompt(item)}
-                        className="text-left p-3 rounded-lg bg-[#0B0C0E]/50 hover:bg-[#1C1F26] border border-glass-border/70 hover:border-electric-blue/40 text-xs font-mono text-gray-300 transition-all flex items-center justify-between group cursor-pointer"
-                      >
-                        <span className="leading-normal">{item}</span>
-                        <ChevronRight className="w-3.5 h-3.5 text-on-surface-variant group-hover:text-electric-blue transition-colors shrink-0 ml-2" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* RIGHT COLUMN: TERMINAL INJECTOR & PARAMS (span 7) */}
-        <div className="lg:col-span-7 flex flex-col gap-6">
-          <div className="bg-[#16181D] border border-glass-border rounded-xl p-6 flex flex-col gap-6">
-            <div className="flex items-center justify-between border-b border-glass-border pb-3">
-              <div className="flex items-center gap-2">
-                <TermIcon className="text-cyber-green w-5 h-5 animate-pulse" />
-                <h2 className="text-sm font-mono font-bold uppercase tracking-wider text-white">
-                  Quest Generation Engine
-                </h2>
+      {hasLessonQuest ? (
+        <section className="rounded-xl border border-electric-blue/35 bg-electric-blue/10 p-5">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-electric-blue">
+                <BookOpenCheck className="h-5 w-5" />
+                <span className="font-mono text-xs font-bold uppercase tracking-wider">Completed Lesson Quest</span>
               </div>
+              <h2 className="mt-2 text-xl font-black text-white">{learningQuestOrigin}</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-relaxed text-on-surface-variant">
+                VibeQuest will generate code from this lesson&apos;s checkpoint, concepts, misconception, and practice bridge. The generated run includes implementation files, denial tests, a code explainer, and a boss question tied to the lesson.
+              </p>
             </div>
-
-            {/* Custom Prompt Input */}
-            <div className="flex flex-col gap-2">
-              <label className="text-xs font-mono uppercase text-on-surface-variant">
-                Build Request
-              </label>
-              <textarea
-                value={buildRequest}
-                onChange={(e) => { onClearLearningQuest?.(); setBuildRequest(e.target.value); }}
-                rows={5}
-                className="w-full bg-[#0B0C0E] border border-glass-border rounded-lg p-3.5 font-mono text-xs text-cyber-green leading-relaxed focus:outline-none focus:border-cyber-green/50 resize-none shadow-inner"
-                placeholder="Describe what you want to understand or build: verifier, payout split, receipt proof, wallet flow, protocol risk, or community-facing explanation..."
-              />
-            </div>
-
-
-            <div className="grid grid-cols-2 gap-4">
-              {/* Skill dropdown */}
-              <div className="flex flex-col gap-1.5">
-                <span className="text-[10px] font-mono uppercase text-on-surface-variant">Skill Track</span>
-                <select
-                  value={skillTrack}
-                  onChange={(e) => setSkillTrack(e.target.value)}
-                  className="bg-[#0B0C0E] text-white text-xs font-mono rounded p-2 border border-glass-border cursor-pointer focus:outline-none"
-                >
-                  <option value="Fiber Builder">Fiber Builder</option>
-                  <option value="CKB Fundamentals">CKB Fundamentals</option>
-                  <option value="AI Discipline">AI Discipline</option>
-                </select>
-              </div>
-
-              {/* Difficulty dropdown */}
-              <div className="flex flex-col gap-1.5">
-                <span className="text-[10px] font-mono uppercase text-on-surface-variant">Difficulty</span>
-                <select
-                  value={difficulty}
-                  onChange={(e) => setDifficulty(e.target.value)}
-                  className="bg-[#0B0C0E] text-white text-xs font-mono rounded p-2 border border-glass-border cursor-pointer focus:outline-none"
-                >
-                  <option value="NOVICE">NOVICE (Novice)</option>
-                  <option value="BUILDER">BUILDER (Standard)</option>
-                  <option value="BOSS">BOSS (Encounter)</option>
-                </select>
-              </div>
-            </div>
-
-            {learningOnlyRequest && (
-              <div className="rounded-lg border border-electric-blue/25 bg-electric-blue/10 p-3 text-xs leading-relaxed text-electric-blue">
-                This is a learning request, not a coding quest. The next VibeQuest learning mode will turn this into a lesson path, tutor chat, checkpoint questions, then quests based on completed lessons.
-              </div>
-            )}
-
-            {learningQuestOrigin ? (
-              <div className="rounded-lg border border-electric-blue/25 bg-electric-blue/10 p-3 text-xs leading-relaxed text-electric-blue">
-                Practice quest source: {learningQuestOrigin}
-              </div>
-            ) : null}
-
             <button
               onClick={handleLaunchQuest}
               disabled={generating || !buildRequest.trim() || learningOnlyRequest}
-              className="w-full py-4 bg-cyber-green hover:brightness-110 disabled:brightness-50 text-black font-extrabold text-sm uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-[0_0_20px_rgba(0,255,100,0.2)]"
+              className="flex min-w-[220px] items-center justify-center gap-2 rounded-xl bg-cyber-green px-5 py-3 text-sm font-extrabold uppercase tracking-wider text-black transition-all hover:brightness-110 disabled:brightness-50"
             >
-              {generating ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  Generating Quest...
-                </>
-              ) : (
-                <>
-                  <Play className="w-4 h-4" />
-                  Generate Live Quest
-                </>
-              )}
+              {generating ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+              {generating ? "Generating..." : "Generate Lesson Quest"}
             </button>
-
-            {generationError && (
-              <div className="rounded-lg border border-red-500/25 bg-red-500/10 p-3 text-xs leading-relaxed text-red-300 flex gap-2">
-                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>
-                  {generationError}
-                  <span className="mt-1 block text-red-200/80">If a lesson-compiled quest loads, continue in Workbench. If no quest appears, adjust the prompt and regenerate.</span>
-                </span>
-              </div>
-            )}
           </div>
-        </div>
+        </section>
+      ) : null}
+
+      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+        <section className="rounded-xl border border-glass-border bg-[#16181D] p-6">
+          <div className="mb-4 flex items-center gap-2 border-b border-glass-border pb-3">
+            <TermIcon className="h-5 w-5 text-cyber-green" />
+            <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">
+              {hasLessonQuest ? "Quest Request" : "Custom Code Quest"}
+            </h2>
+          </div>
+
+          <textarea
+            value={buildRequest}
+            onChange={(event) => {
+              onClearLearningQuest?.();
+              setBuildRequest(event.target.value);
+            }}
+            rows={8}
+            className="w-full resize-none rounded-lg border border-glass-border bg-[#0B0C0E] p-4 font-mono text-xs leading-relaxed text-cyber-green shadow-inner outline-none focus:border-cyber-green/50"
+            placeholder="Describe the verifier, payment receipt, CKB cell proof, denial test, or audit scenario you want VibeQuest to turn into code."
+          />
+
+          {learningOnlyRequest ? (
+            <div className="mt-4 rounded-lg border border-electric-blue/25 bg-electric-blue/10 p-3 text-xs leading-relaxed text-electric-blue">
+              This reads like a lesson request. Use Learn mode first, pass the checkpoint, then generate a code quest from that lesson.
+            </div>
+          ) : null}
+
+          {generationError ? (
+            <div className="mt-4 flex gap-2 rounded-lg border border-red-500/25 bg-red-500/10 p-3 text-xs leading-relaxed text-red-300">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{generationError}</span>
+            </div>
+          ) : null}
+
+          {!hasLessonQuest ? (
+            <button
+              onClick={handleLaunchQuest}
+              disabled={generating || !buildRequest.trim() || learningOnlyRequest}
+              className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-cyber-green py-4 text-sm font-extrabold uppercase tracking-wider text-black transition-all hover:brightness-110 disabled:brightness-50"
+            >
+              {generating ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+              {generating ? "Generating Quest..." : "Generate Code Quest"}
+            </button>
+          ) : null}
+        </section>
+
+        <aside className="rounded-xl border border-glass-border bg-[#16181D] p-5">
+          <div className="mb-4 flex items-center gap-2 border-b border-glass-border pb-3">
+            <WandSparkles className="h-5 w-5 text-electric-blue" />
+            <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Quest Controls</h2>
+          </div>
+
+          <div className="grid gap-4">
+            <label className="grid gap-1.5">
+              <span className="font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">Skill Track</span>
+              <select
+                value={skillTrack}
+                onChange={(event) => setSkillTrack(event.target.value)}
+                className="rounded border border-glass-border bg-[#0B0C0E] p-2 text-xs font-mono text-white outline-none"
+              >
+                <option value="Fiber Builder">Fiber Builder</option>
+                <option value="CKB Fundamentals">CKB Fundamentals</option>
+                <option value="AI Discipline">AI Discipline</option>
+              </select>
+            </label>
+
+            <label className="grid gap-1.5">
+              <span className="font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">Difficulty</span>
+              <select
+                value={difficulty}
+                onChange={(event) => setDifficulty(event.target.value)}
+                className="rounded border border-glass-border bg-[#0B0C0E] p-2 text-xs font-mono text-white outline-none"
+              >
+                <option value="NOVICE">NOVICE</option>
+                <option value="BUILDER">BUILDER</option>
+                <option value="BOSS">BOSS</option>
+              </select>
+            </label>
+          </div>
+
+          {!hasLessonQuest ? (
+            <div className="mt-6 grid gap-2">
+              <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-electric-blue">Quick Starts</span>
+              {CUSTOM_STARTERS.map((starter) => (
+                <button
+                  key={starter.label}
+                  onClick={() => applyStarter(starter)}
+                  className="rounded-lg border border-glass-border/70 bg-[#0B0C0E]/70 p-3 text-left text-xs font-bold text-white transition-colors hover:border-electric-blue/40"
+                >
+                  {starter.label}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <button
+              onClick={() => {
+                onClearLearningQuest?.();
+                setBuildRequest("");
+              }}
+              className="mt-6 w-full rounded-lg border border-glass-border px-3 py-2 text-xs font-bold uppercase text-on-surface-variant transition-colors hover:border-electric-blue/40 hover:text-white"
+            >
+              Switch To Custom Quest
+            </button>
+          )}
+        </aside>
       </div>
     </div>
   );

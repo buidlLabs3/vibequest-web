@@ -102,6 +102,11 @@ export type LearningQuestLink = {
   module_title: string;
   lesson_title: string;
   checkpoint_question: string;
+  quest_bridge?: string;
+  concepts?: string[];
+  correct_answer?: string;
+  misunderstanding?: string;
+  lesson_summary?: string;
 };
 
 export type GenerateQuestRequest = {
