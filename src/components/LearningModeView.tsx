@@ -38,12 +38,8 @@ interface LearningModeViewProps {
   warning: string | null;
   selectedInterests: string[];
   setSelectedInterests: (interests: string[]) => void;
-  learnerGoal: string;
-  setLearnerGoal: (goal: string) => void;
   background: string;
   setBackground: (background: string) => void;
-  pace: string;
-  setPace: (pace: string) => void;
   activeLessonIndex: number;
   setActiveLessonIndex: (index: number) => void;
   checkpointAnswers: Record<string, number>;
@@ -58,19 +54,28 @@ interface LearningModeViewProps {
   canStartLessonQuest: boolean;
 }
 
-const FEATURED_PATH_ID = "ckb-cells";
-
-const INTERESTS = [
-  { id: "ckb-foundations", label: "CKB Foundations", detail: "Cells, scripts, witnesses, transactions" },
-  { id: "fiber-payments", label: "Fiber Payments", detail: "Channels, invoices, HTLCs, routing" },
-  { id: "joyid-wallets", label: "JoyID Wallet UX", detail: "Passkeys, signer identity, proof binding" },
-  { id: "security-audits", label: "Security Audits", detail: "Replay, mismatch, denial paths" },
-  { id: "product-community", label: "Product / Community", detail: "Explain risk and value without hand-waving" },
-  { id: "xudt-economics", label: "xUDT Economics", detail: "Assets, splits, payout integrity" },
+const LESSON_THEMES = [
+  {
+    id: "ckb-cells",
+    label: "CKB Cell Model",
+    detail: "Cells, OutPoints, scripts, witnesses",
+    interests: ["CKB Cell Model", "CKB Foundations"],
+  },
+  {
+    id: "fiber-payments",
+    label: "Fiber Payments",
+    detail: "Channels, invoices, HTLC receipts",
+    interests: ["Fiber Payments", "Fiber Channels"],
+  },
+  {
+    id: "security-audits",
+    label: "Proof Security",
+    detail: "Replay, mismatch, payout denial paths",
+    interests: ["Security Audits", "CKB/Fiber Proof Security"],
+  },
 ];
 
-const BACKGROUNDS = ["No-code / community", "Vibecoder", "Frontend dev", "Backend dev", "Protocol researcher", "Founder / product"];
-const PACES = ["Gentle", "Focused", "Deep dive"];
+const SPECIALITIES = ["Vibecoder", "Backend dev", "Frontend dev", "Security auditor", "Product / community"];
 
 export default function LearningModeView({
   module,
@@ -81,12 +86,8 @@ export default function LearningModeView({
   warning,
   selectedInterests,
   setSelectedInterests,
-  learnerGoal,
-  setLearnerGoal,
   background,
   setBackground,
-  pace,
-  setPace,
   activeLessonIndex,
   setActiveLessonIndex,
   checkpointAnswers,
@@ -115,12 +116,12 @@ export default function LearningModeView({
   const progress = module ? Math.round((completedLessons / module.lessons.length) * 100) : 0;
 
 
-  const toggleInterest = (interest: string) => {
-    if (selectedInterests.includes(interest)) {
-      setSelectedInterests(selectedInterests.filter((item) => item !== interest));
-      return;
-    }
-    setSelectedInterests([...selectedInterests, interest]);
+  const activeTheme = LESSON_THEMES.find((theme) =>
+    selectedInterests.includes(theme.label) || theme.interests.some((interest) => selectedInterests.includes(interest)),
+  ) ?? LESSON_THEMES[0];
+
+  const chooseTheme = (theme: typeof LESSON_THEMES[number]) => {
+    setSelectedInterests([theme.label, ...theme.interests.filter((interest) => interest !== theme.label)]);
   };
 
   const chooseAnswer = (lessonId: string, index: number) => {
@@ -188,96 +189,68 @@ export default function LearningModeView({
           <section className="rounded-xl border border-electric-blue/30 bg-[#121820] p-5">
             <div className="mb-4 flex items-center gap-2 border-b border-glass-border pb-3">
               <BookOpen className="h-5 w-5 text-electric-blue" />
-              <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Focused AI Path</h2>
-            </div>
-            <div className="rounded-lg border border-electric-blue/25 bg-electric-blue/10 p-4">
-              <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-electric-blue">CKB Cells Focus</span>
-              <h3 className="mt-2 text-lg font-black tracking-tight text-white">Generate Fresh Lessons</h3>
-              <p className="mt-2 text-xs leading-relaxed text-on-surface-variant">
-                Requests a new AI-authored CKB Cells module from your background, goal, and pace. VibeQuest only loads the module after the AI returns complete lessons, code lenses, checkpoint answers, and quest bridges.
-              </p>
-              <button
-                onClick={() => onGenerateModule(FEATURED_PATH_ID)}
-                disabled={generating}
-                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-electric-blue px-4 py-3 text-xs font-black uppercase tracking-wider text-black transition-all hover:brightness-110 disabled:brightness-50"
-              >
-                {generating ? <RefreshCw className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-                {generating ? "Generating AI Path" : "Generate AI CKB Cells Path"}
-              </button>
-              {error ? (
-                <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs leading-relaxed text-red-300">
-                  {error}
-                </div>
-              ) : null}
-              {warning ? (
-                <div className="mt-3 rounded-lg border border-warning-amber/30 bg-warning-amber/10 p-3 text-xs leading-relaxed text-warning-amber">
-                  {warning}
-                </div>
-              ) : null}
-            </div>
-          </section>
-
-          <section className="rounded-xl border border-glass-border bg-[#16181D] p-5">
-            <div className="mb-4 flex items-center gap-2 border-b border-glass-border pb-3">
-              <Target className="h-5 w-5 text-electric-blue" />
-              <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Custom Learner Profile</h2>
+              <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Lesson Setup</h2>
             </div>
 
             <div className="grid gap-3">
-              {INTERESTS.map((interest) => {
-                const selected = selectedInterests.includes(interest.label);
+              <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-electric-blue">Choose Lesson</span>
+              {LESSON_THEMES.map((theme) => {
+                const selected = activeTheme.id === theme.id;
                 return (
                   <button
-                    key={interest.id}
-                    onClick={() => toggleInterest(interest.label)}
+                    key={theme.id}
+                    onClick={() => chooseTheme(theme)}
                     className={`rounded-lg border p-3 text-left transition-colors ${selected ? "border-electric-blue/50 bg-electric-blue/10" : "border-glass-border/70 bg-[#0B0C0E]/60 hover:border-electric-blue/30"}`}
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <span className="text-xs font-bold text-white">{interest.label}</span>
+                      <span className="text-xs font-bold text-white">{theme.label}</span>
                       {selected ? <CheckCircle className="h-4 w-4 text-electric-blue" /> : null}
                     </div>
-                    <p className="mt-1 text-[11px] leading-relaxed text-on-surface-variant">{interest.detail}</p>
+                    <p className="mt-1 text-[11px] leading-relaxed text-on-surface-variant">{theme.detail}</p>
                   </button>
                 );
               })}
             </div>
 
-            <div className="mt-5 grid gap-4">
-              <label className="grid gap-2">
-                <span className="font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">Goal</span>
-                <textarea
-                  value={learnerGoal}
-                  onChange={(event) => setLearnerGoal(event.target.value)}
-                  rows={4}
-                  className="resize-none rounded-lg border border-glass-border bg-[#0B0C0E] p-3 text-xs leading-relaxed text-white outline-none focus:border-electric-blue/50"
-                  placeholder="Example: teach me enough CKB to explain cells and review generated verifier code."
-                />
-              </label>
-
-              <div className="grid grid-cols-2 gap-3">
-                <label className="grid gap-2">
-                  <span className="font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">Background</span>
-                  <select value={background} onChange={(event) => setBackground(event.target.value)} className="rounded-lg border border-glass-border bg-[#0B0C0E] p-2 text-xs text-white outline-none">
-                    {BACKGROUNDS.map((item) => <option key={item}>{item}</option>)}
-                  </select>
-                </label>
-                <label className="grid gap-2">
-                  <span className="font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">Pace</span>
-                  <select value={pace} onChange={(event) => setPace(event.target.value)} className="rounded-lg border border-glass-border bg-[#0B0C0E] p-2 text-xs text-white outline-none">
-                    {PACES.map((item) => <option key={item}>{item}</option>)}
-                  </select>
-                </label>
+            <div className="mt-5 grid gap-3">
+              <div className="flex items-center gap-2">
+                <Target className="h-4 w-4 text-cyber-green" />
+                <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-cyber-green">Speciality</span>
               </div>
-
-              <button
-                onClick={() => onGenerateModule()}
-                disabled={generating || (selectedInterests.length === 0 && learnerGoal.trim().length < 8)}
-                className="flex items-center justify-center gap-2 rounded-xl bg-cyber-green px-5 py-3 text-sm font-black uppercase tracking-wider text-black transition-all hover:brightness-110 disabled:brightness-50"
-              >
-                {generating ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                Generate Custom Learning Path
-              </button>
+              <div className="grid grid-cols-2 gap-2">
+                {SPECIALITIES.map((item) => {
+                  const selected = background === item;
+                  return (
+                    <button
+                      key={item}
+                      onClick={() => setBackground(item)}
+                      className={`rounded-lg border px-3 py-2 text-left text-[11px] font-bold transition-colors ${selected ? "border-cyber-green/45 bg-cyber-green/10 text-white" : "border-glass-border bg-[#0B0C0E]/70 text-on-surface-variant hover:border-cyber-green/30 hover:text-white"}`}
+                    >
+                      {item}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
+
+            <button
+              onClick={() => onGenerateModule(activeTheme.id)}
+              disabled={generating}
+              className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-electric-blue px-5 py-3 text-sm font-black uppercase tracking-wider text-black transition-all hover:brightness-110 disabled:brightness-50"
+            >
+              {generating ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              {generating ? "Generating Module" : "Generate Module"}
+            </button>
+            {error ? (
+              <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs leading-relaxed text-red-300">
+                {error}
+              </div>
+            ) : null}
+            {warning ? (
+              <div className="mt-3 rounded-lg border border-warning-amber/30 bg-warning-amber/10 p-3 text-xs leading-relaxed text-warning-amber">
+                {warning}
+              </div>
+            ) : null}
           </section>
 
           {module ? (
@@ -326,7 +299,7 @@ export default function LearningModeView({
                     disabled={!canStartLessonQuest}
                     className="flex shrink-0 items-center justify-center gap-2 rounded-xl border border-cyber-green/30 bg-cyber-green/10 px-4 py-3 text-xs font-black uppercase tracking-wider text-cyber-green hover:bg-cyber-green/15 disabled:border-warning-amber/25 disabled:bg-warning-amber/5 disabled:text-warning-amber disabled:hover:bg-warning-amber/5"
                   >
-                    {canStartLessonQuest ? "Turn Into Quest" : "Pass Checkpoint First"}
+                    {canStartLessonQuest ? "Generate Quest" : "Pass Checkpoint First"}
                     <ArrowRight className="h-4 w-4" />
                   </button>
                 </div>
@@ -406,7 +379,7 @@ export default function LearningModeView({
                       disabled={!checkpointPassed}
                       className="rounded border border-cyber-green/30 px-3 py-2 font-mono text-[10px] font-bold uppercase text-cyber-green hover:bg-cyber-green/10 disabled:cursor-not-allowed disabled:border-warning-amber/25 disabled:text-warning-amber"
                     >
-                      Start Practice Quest
+                      Generate Module Quest
                     </button>
                   </div>
                 </div>

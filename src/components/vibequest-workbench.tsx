@@ -62,6 +62,24 @@ type TabId =
 const DEFAULT_BUILD_REQUEST =
   "Build a Fiber-powered paid content app with CKB proof receipts, a creator payout split, and a test that blocks unpaid reads.";
 
+const LEARNING_PATH_PROFILES: Record<string, { interests: string[]; goal: string; skillTrack: string }> = {
+  "ckb-cells": {
+    interests: ["CKB Cell Model", "CKB Foundations"],
+    goal: "Teach this learner the CKB Cell model through generated code lenses, checkpoint reasoning, and verifier quests about cells, OutPoints, scripts, and witnesses.",
+    skillTrack: "CKB Fundamentals",
+  },
+  "fiber-payments": {
+    interests: ["Fiber Payments", "Fiber Channels"],
+    goal: "Teach this learner Fiber payment channels through generated code lenses, checkpoint reasoning, and verifier quests about invoices, HTLC preimages, channel state, and paid access.",
+    skillTrack: "Fiber Builder",
+  },
+  "security-audits": {
+    interests: ["Proof Security", "Security Audits", "CKB/Fiber Proof Security"],
+    goal: "Teach this learner to audit generated CKB/Fiber code through checkpoints and quests about replay, mismatched witnesses, stale channel state, and payout over-claiming.",
+    skillTrack: "AI Discipline",
+  },
+};
+
 const STORAGE_KEYS = {
   activeTab: "vibequest.activeTab",
   walletProof: "vibequest.walletProof.joyid.v1",
@@ -957,15 +975,9 @@ export function VibeQuestWorkbench() {
     setActiveLessonIndex(0);
     setPendingLearningQuestContext(null);
 
-    const canonicalCellsPath = pathId === "ckb-cells";
-    const requestInterests = canonicalCellsPath
-      ? Array.from(new Set([...selectedInterests, "CKB Cells", "CKB Foundations"]))
-      : selectedInterests;
-    const requestGoal = canonicalCellsPath
-      ? learnerGoal.trim().length >= 8
-        ? learnerGoal
-        : "Generate a fresh CKB Cells learning module with code lenses, checkpoint reasoning, denial tests, and quest handoff."
-      : learnerGoal;
+    const pathProfile = pathId ? LEARNING_PATH_PROFILES[pathId] : null;
+    const requestInterests = pathProfile ? pathProfile.interests : selectedInterests.slice(0, 3);
+    const requestGoal = pathProfile ? `${pathProfile.goal} Speciality: ${learnerBackground}.` : learnerGoal;
     const requestPace = learningPace;
 
     try {
@@ -976,10 +988,10 @@ export function VibeQuestWorkbench() {
         background: learnerBackground,
         pace: requestPace,
       });
-      if (canonicalCellsPath) {
+      if (pathProfile) {
         setSelectedInterests(requestInterests);
         setLearnerGoal(requestGoal);
-        setLearningPace(requestPace);
+        setSkillTrack(pathProfile.skillTrack);
       }
       setLearningModuleId(response.module_id);
       setLearningModule(response.module);
@@ -1265,12 +1277,8 @@ export function VibeQuestWorkbench() {
             warning={learningWarning}
             selectedInterests={selectedInterests}
             setSelectedInterests={setSelectedInterests}
-            learnerGoal={learnerGoal}
-            setLearnerGoal={setLearnerGoal}
             background={learnerBackground}
             setBackground={setLearnerBackground}
-            pace={learningPace}
-            setPace={setLearningPace}
             activeLessonIndex={activeLessonIndex}
             setActiveLessonIndex={setActiveLessonIndex}
             checkpointAnswers={checkpointAnswers}
