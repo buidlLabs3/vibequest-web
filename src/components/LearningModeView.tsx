@@ -50,7 +50,7 @@ interface LearningModeViewProps {
   tutorQuestion: string;
   setTutorQuestion: (question: string) => void;
   onGenerateModule: (pathId?: string) => Promise<void>;
-  onAskTutor: () => Promise<LearningTutorResponse | null>;
+  onAskTutor: (question?: string) => Promise<LearningTutorResponse | null>;
   onStartLessonQuest: (prompt: string) => void;
   canStartLessonQuest: boolean;
 }
@@ -116,7 +116,9 @@ export default function LearningModeView({
     return module.lessons.filter((lesson) => checkpointAnswers[lesson.id] === lesson.checkpoint.correct_index).length;
   }, [checkpointAnswers, module]);
   const progress = module ? Math.round((completedLessons / module.lessons.length) * 100) : 0;
-
+  const defaultTutorQuestion = activeLesson
+    ? `Walk me through "${activeLesson.title}" from this generated lesson, explain the code lens, and check my understanding.`
+    : "";
 
   const activeTheme = LESSON_THEMES.find((theme) =>
     selectedInterests.includes(theme.label) || theme.interests.some((interest) => selectedInterests.includes(interest)),
@@ -131,8 +133,11 @@ export default function LearningModeView({
   };
 
   const askTutor = async () => {
-    const response = await onAskTutor();
-    if (!response || !tutorQuestion.trim()) return;
+    const askedQuestion = tutorQuestion.trim() || defaultTutorQuestion;
+    if (!askedQuestion || !activeLesson) return;
+
+    const response = await onAskTutor(askedQuestion);
+    if (!response) return;
 
     const createdAt = new Date().toISOString();
     const lessonMetadata = module && activeLesson ? {
@@ -142,7 +147,7 @@ export default function LearningModeView({
     } : {};
     setTutorMessages([
       ...tutorMessages,
-      { id: `learner-${Date.now()}`, role: "learner", text: tutorQuestion.trim(), createdAt, ...lessonMetadata },
+      { id: `learner-${Date.now()}`, role: "learner", text: askedQuestion, createdAt, ...lessonMetadata },
       {
         id: `mentor-${Date.now()}`,
         role: "mentor",
@@ -408,7 +413,7 @@ export default function LearningModeView({
                       </div>
                     )) : (
                       <div className="rounded-lg border border-dashed border-glass-border p-5 text-center text-xs text-on-surface-variant">
-                        Ask anything about this lesson. The tutor will answer in context and ask a follow-up to verify understanding.
+                        Ask anything, or press Ask with an empty box for an active-lesson walkthrough. The tutor uses the generated explainer, code lens, checkpoint, and quest bridge.
                       </div>
                     )}
                   </div>
@@ -417,11 +422,11 @@ export default function LearningModeView({
                       value={tutorQuestion}
                       onChange={(event) => setTutorQuestion(event.target.value)}
                       className="min-w-0 flex-1 rounded-lg border border-glass-border bg-[#0B0C0E] px-3 py-2 text-xs text-white outline-none focus:border-electric-blue/40"
-                      placeholder="Ask what a cell is, why PTLC matters, or how a replay attack works..."
+                      placeholder="Ask a question, or leave blank to explain the active lesson..."
                     />
                     <button
                       onClick={askTutor}
-                      disabled={tutorLoading || !tutorQuestion.trim()}
+                      disabled={tutorLoading || !activeLesson}
                       className="flex items-center gap-2 rounded-lg bg-electric-blue px-4 py-2 text-xs font-black uppercase text-black disabled:brightness-50"
                     >
                       {tutorLoading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}

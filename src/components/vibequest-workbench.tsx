@@ -1063,17 +1063,23 @@ export function VibeQuestWorkbench() {
     }
   }, [learnerBackground, learnerGoal, learningPace, selectedInterests, walletProof]);
 
-  const handleAskLearningTutor = useCallback(async () => {
+  const handleAskLearningTutor = useCallback(async (questionOverride?: string) => {
     const lesson = learningModule?.lessons[activeLessonIndex];
-    if (!learningModule || !lesson || !tutorQuestion.trim()) {
+    if (!learningModule || !lesson) {
       return null;
     }
 
+    const question = (questionOverride ?? tutorQuestion).trim() || defaultLessonTutorQuestion(lesson.title);
     const payload = {
       module_title: learningModule.title,
       lesson_title: lesson.title,
-      lesson_context: `${lesson.why_it_matters}\n${lesson.explanation}\nCheckpoint: ${lesson.checkpoint.question}`,
-      question: tutorQuestion,
+      lesson_context: buildActiveLessonTutorContext({
+        module: learningModule,
+        lesson,
+        lessonIndex: activeLessonIndex,
+        selectedAnswer: checkpointAnswers[lesson.id],
+      }),
+      question,
     };
 
     setTutorLoading(true);
@@ -1098,7 +1104,7 @@ export function VibeQuestWorkbench() {
     } finally {
       setTutorLoading(false);
     }
-  }, [activeLessonIndex, applyLearningSession, learningModule, tutorQuestion, walletProof]);
+  }, [activeLessonIndex, applyLearningSession, checkpointAnswers, learningModule, tutorQuestion, walletProof]);
 
   const handleStartLessonQuest = useCallback((prompt: string) => {
     const lesson = learningModule?.lessons[activeLessonIndex];
@@ -1459,6 +1465,56 @@ export function VibeQuestWorkbench() {
       />
     </div>
   );
+}
+
+function defaultLessonTutorQuestion(lessonTitle: string) {
+  return `Walk me through "${lessonTitle}" from the active lesson, explain the code lens, then ask me one follow-up question.`;
+}
+
+type ActiveLessonTutorContextInput = {
+  module: LearningModuleDto;
+  lesson: LearningModuleDto["lessons"][number];
+  lessonIndex: number;
+  selectedAnswer?: number;
+};
+
+function buildActiveLessonTutorContext({
+  module,
+  lesson,
+  lessonIndex,
+  selectedAnswer,
+}: ActiveLessonTutorContextInput) {
+  const checkpointOptions = lesson.checkpoint.options
+    .map((option, index) => {
+      const markers = [
+        index === lesson.checkpoint.correct_index ? "correct" : "wrong",
+        index === selectedAnswer ? "selected" : null,
+      ]
+        .filter(Boolean)
+        .join(", ");
+      return `${index + 1}. ${option.label}${markers ? ` (${markers})` : ""} - ${option.feedback}`;
+    })
+    .join("\n");
+  const selectedOption = selectedAnswer === undefined ? "not answered yet" : `${selectedAnswer + 1}`;
+
+  return [
+    `ACTIVE GENERATED LESSON CONTEXT`,
+    `Module: ${module.title}`,
+    `Module outcome: ${module.outcome}`,
+    `Lesson ${lessonIndex + 1} of ${module.lessons.length}: ${lesson.title}`,
+    `Concepts: ${lesson.concepts.join(", ") || "none supplied"}`,
+    `Why this matters: ${lesson.why_it_matters}`,
+    `Lesson explainer and code lens:
+${lesson.explanation}`,
+    `Checkpoint question: ${lesson.checkpoint.question}`,
+    `Checkpoint options:
+${checkpointOptions}`,
+    `Selected checkpoint answer: ${selectedOption}`,
+    `Checkpoint explanation: ${lesson.checkpoint.explanation}`,
+    `Checkpoint follow-up: ${lesson.checkpoint.follow_up_question}`,
+    `Practice quest bridge: ${lesson.quest_bridge}`,
+    `Tutor instruction: answer only from this active generated lesson first; if adding CKB/Fiber/JoyID context, connect it back to the lesson's code lens, checkpoint, and practice quest bridge.`,
+  ].join("\n\n");
 }
 
 function normalizeHistoryError(message: string) {
