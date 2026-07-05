@@ -60,7 +60,7 @@ export default function QuestRunView({
     {
       role: "Researcher",
       outcome: "Map protocol concepts to code",
-      prompt: "Turn a CKB cell/script/witness or Fiber HTLC/channel-state concept into a compact code quest with references, invariants, and a failure case.",
+      prompt: "Turn a CKB cell/script/witness or Fiber PTLC/channel-state concept into a compact code quest with references, invariants, and a failure case.",
       track: "CKB Fundamentals",
     },
   ];
@@ -70,7 +70,7 @@ export default function QuestRunView({
       category: "Trust Boundaries",
       items: [
         "Bind receipt proof to reader, content, run id, and CKB cell",
-        "Reject stale Fiber channel state or replayed HTLC preimages",
+        "Reject stale Fiber channel state or replayed PTLC proofs",
         "Explain what is checked locally versus proven by CKB witness data",
       ]
     },

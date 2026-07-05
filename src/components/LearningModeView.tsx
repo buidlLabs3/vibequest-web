@@ -36,6 +36,7 @@ interface LearningModeViewProps {
   syncState: "idle" | "loading" | "saving" | "saved" | "local-only";
   error: string | null;
   warning: string | null;
+  generationStatus: string | null;
   selectedInterests: string[];
   setSelectedInterests: (interests: string[]) => void;
   background: string;
@@ -64,7 +65,7 @@ const LESSON_THEMES = [
   {
     id: "fiber-payments",
     label: "Fiber Payments",
-    detail: "Channels, invoices, HTLC receipts",
+    detail: "Channels, invoices, PTLC/payment receipts",
     interests: ["Fiber Payments", "Fiber Channels"],
   },
   {
@@ -84,6 +85,7 @@ export default function LearningModeView({
   syncState,
   error,
   warning,
+  generationStatus,
   selectedInterests,
   setSelectedInterests,
   background,
@@ -241,6 +243,11 @@ export default function LearningModeView({
               {generating ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
               {generating ? "Generating Module" : "Generate Module"}
             </button>
+            {generationStatus ? (
+              <div className="mt-3 rounded-lg border border-electric-blue/30 bg-electric-blue/10 p-3 text-xs font-bold uppercase tracking-wide text-electric-blue">
+                {generationStatus}
+              </div>
+            ) : null}
             {error ? (
               <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs leading-relaxed text-red-300">
                 {error}
@@ -410,7 +417,7 @@ export default function LearningModeView({
                       value={tutorQuestion}
                       onChange={(event) => setTutorQuestion(event.target.value)}
                       className="min-w-0 flex-1 rounded-lg border border-glass-border bg-[#0B0C0E] px-3 py-2 text-xs text-white outline-none focus:border-electric-blue/40"
-                      placeholder="Ask what a cell is, why HTLC matters, or how a replay attack works..."
+                      placeholder="Ask what a cell is, why PTLC matters, or how a replay attack works..."
                     />
                     <button
                       onClick={askTutor}

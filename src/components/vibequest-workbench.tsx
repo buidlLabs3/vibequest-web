@@ -16,7 +16,7 @@ import {
   askCodeTutor,
   askLearningTutor,
   completeQuest,
-  generateLearningModule,
+  generateLearningLesson,
   generateQuest,
   getHealth,
   getLearningSession,
@@ -70,7 +70,7 @@ const LEARNING_PATH_PROFILES: Record<string, { interests: string[]; goal: string
   },
   "fiber-payments": {
     interests: ["Fiber Payments", "Fiber Channels"],
-    goal: "Teach this learner Fiber payment channels through generated code lenses, checkpoint reasoning, and verifier quests about invoices, HTLC preimages, channel state, and paid access.",
+    goal: "Teach this learner Fiber payment channels through generated code lenses, checkpoint reasoning, and verifier quests about invoices, PTLC proofs, channel state, and paid access.",
     skillTrack: "Fiber Builder",
   },
   "security-audits": {
@@ -160,6 +160,7 @@ export function VibeQuestWorkbench() {
   const [learningGenerating, setLearningGenerating] = useState(false);
   const [learningError, setLearningError] = useState<string | null>(null);
   const [learningWarning, setLearningWarning] = useState<string | null>(null);
+  const [learningGenerationStatus, setLearningGenerationStatus] = useState<string | null>(null);
   const [learningSource, setLearningSource] = useState<QuestSource>("open-ai");
   const [selectedInterests, setSelectedInterests] = useState<string[]>(["CKB Foundations", "Fiber Payments"]);
   const [learnerGoal, setLearnerGoal] = useState("Teach me CKB/Fiber well enough to understand generated code, explain the trust boundary, and complete practical quests.");
@@ -210,7 +211,6 @@ export function VibeQuestWorkbench() {
     if (restoredLearningSession) {
       if (isLegacyLearningModule(restoredLearningSession.module, restoredLearningSession.source)) {
         window.localStorage.removeItem(STORAGE_KEYS.learningSession);
-        setLearningWarning("Your previous learning path used the old lightweight lesson format. Generate a fresh OpenAI-authored path.");
       } else {
         setLearningModule(restoredLearningSession.module);
         setLearningModuleId(restoredLearningSession.moduleId ?? null);
@@ -629,7 +629,6 @@ export function VibeQuestWorkbench() {
       setCheckpointAnswers({});
       setTutorMessages([]);
       lastSavedLearningSnapshotRef.current = null;
-      setLearningWarning("Your saved learning path used a removed static lesson format, so VibeQuest cleared it. Generate a fresh AI-authored path.");
       setLearningSyncState("idle");
       return;
     }
@@ -970,39 +969,96 @@ export function VibeQuestWorkbench() {
     setLearningGenerating(true);
     setLearningError(null);
     setLearningWarning(null);
+    setLearningGenerationStatus("Preparing five AI-authored lessons...");
     setTutorMessages([]);
     setCheckpointAnswers({});
     setActiveLessonIndex(0);
     setPendingLearningQuestContext(null);
+    setLearningSyncState("loading");
 
     const pathProfile = pathId ? LEARNING_PATH_PROFILES[pathId] : null;
     const requestInterests = pathProfile ? pathProfile.interests : selectedInterests.slice(0, 3);
     const requestGoal = pathProfile ? `${pathProfile.goal} Speciality: ${learnerBackground}.` : learnerGoal;
     const requestPace = learningPace;
+    const moduleId = globalThis.crypto?.randomUUID?.() ?? `vq-learning-${Date.now()}`;
+    const lessons: LearningModuleDto["lessons"] = [];
+    let moduleShell: Omit<LearningModuleDto, "lessons"> | null = null;
+    let generatedSource: QuestSource = "open-ai";
+    let generatedWarning: string | null = null;
 
     try {
-      const response = await generateLearningModule({
-        path_id: pathId ?? null,
-        interests: requestInterests,
-        learner_goal: requestGoal,
-        background: learnerBackground,
-        pace: requestPace,
-      });
       if (pathProfile) {
         setSelectedInterests(requestInterests);
         setLearnerGoal(requestGoal);
         setSkillTrack(pathProfile.skillTrack);
       }
-      setLearningModuleId(response.module_id);
-      setLearningModule(response.module);
-      setLearningSource(response.source);
+      setLearningModuleId(moduleId);
+
+      for (let lessonIndex = 0; lessonIndex < 5; lessonIndex += 1) {
+        let lastLessonError: unknown = null;
+        let response: Awaited<ReturnType<typeof generateLearningLesson>> | null = null;
+
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          setLearningGenerationStatus(
+            attempt === 0
+              ? `Generating lesson ${lessonIndex + 1} of 5...`
+              : `Regenerating lesson ${lessonIndex + 1} of 5 with a stricter pass...`,
+          );
+          try {
+            response = await generateLearningLesson({
+              path_id: pathId ?? null,
+              interests: requestInterests,
+              learner_goal: requestGoal,
+              background: learnerBackground,
+              pace: requestPace,
+              lesson_index: lessonIndex,
+            });
+            break;
+          } catch (error) {
+            lastLessonError = error;
+            if (attempt === 0) {
+              await new Promise((resolve) => window.setTimeout(resolve, 1200));
+            }
+          }
+        }
+
+        if (!response) {
+          throw lastLessonError instanceof Error ? lastLessonError : new Error("Learning lesson generation failed.");
+        }
+
+        generatedSource = response.source;
+        generatedWarning = response.warning ?? generatedWarning;
+        moduleShell = {
+          title: response.module_title,
+          learner_profile: response.learner_profile,
+          outcome: response.outcome,
+          capstone_quest_prompt: response.capstone_quest_prompt,
+          resources: response.resources,
+        };
+        lessons[response.lesson_index] = response.lesson;
+
+        const generatedLessons = lessons.filter((lesson): lesson is LearningModuleDto["lessons"][number] => Boolean(lesson));
+        setLearningModule({ ...moduleShell, lessons: generatedLessons });
+        setLearningSource(generatedSource);
+      }
+
+      if (!moduleShell || lessons.length !== 5 || lessons.some((lesson) => !lesson)) {
+        throw new Error("Learning module generation returned an incomplete lesson path.");
+      }
+
+      setLearningModule({ ...moduleShell, lessons });
+      setLearningSource(generatedSource);
       setLearningError(null);
-      setLearningWarning(response.warning ?? (response.source === "core-fallback" ? "Structured learning path loaded while live AI lessons recover." : null));
+      setLearningWarning(generatedWarning);
       setLearningSyncState(walletProof ? "saving" : "local-only");
       setHistoryError(null);
     } catch (error) {
+      setLearningModule(null);
+      setLearningModuleId(null);
+      setLearningSyncState("idle");
       setLearningError(error instanceof Error ? error.message : "Learning module generation failed.");
     } finally {
+      setLearningGenerationStatus(null);
       setLearningGenerating(false);
     }
   }, [learnerBackground, learnerGoal, learningPace, selectedInterests, walletProof]);
@@ -1275,6 +1331,7 @@ export function VibeQuestWorkbench() {
             syncState={learningSyncState}
             error={learningError}
             warning={learningWarning}
+            generationStatus={learningGenerationStatus}
             selectedInterests={selectedInterests}
             setSelectedInterests={setSelectedInterests}
             background={learnerBackground}
@@ -1991,7 +2048,7 @@ function analyzeQuestCode(quest: QuestData): CodeInsights {
     networkHook: hasWitness
       ? "CKB state appears through cell/script/witness/xUDT concepts; explain what is trusted on-chain versus checked locally."
       : hasChannel
-        ? "Fiber state appears through channel/HTLC/route terms; explain what prevents replay or stale state acceptance."
+        ? "Fiber state appears through channel/PTLC/route terms; explain what prevents replay or stale state acceptance."
         : "The quest mentions CKB/Fiber, but the code should be inspected for a concrete network-state binding.",
     riskFocus,
     vulnerableLine,
@@ -2034,11 +2091,11 @@ function learningResourcesFor(lower: string): LearningResource[] {
     {
       title: "Fiber Network Repository",
       url: "https://github.com/nervosnetwork/fiber",
-      reason: "Use this when a quest mentions Fiber channels, HTLCs, invoices, routing, or off-chain payment state.",
+      reason: "Use this when a quest mentions Fiber channels, PTLCs, invoices, routing, or off-chain payment state.",
     },
     {
       title: "JoyID Documentation",
-      url: "https://docs.joy.id/",
+      url: "https://docs.joyid.dev/",
       reason: "Use this to understand the wallet/passkey proof that binds the learner to a quest run.",
     },
   ];

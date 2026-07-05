@@ -256,6 +256,22 @@ export type GenerateLearningModuleResponse = {
   warning: string | null;
 };
 
+export type GenerateLearningLessonRequest = GenerateLearningModuleRequest & {
+  lesson_index: number;
+};
+
+export type GenerateLearningLessonResponse = {
+  source: QuestSource;
+  module_title: string;
+  learner_profile: string;
+  outcome: string;
+  capstone_quest_prompt: string;
+  resources: LearningResourceDto[];
+  lesson: LearningLessonDto;
+  lesson_index: number;
+  warning: string | null;
+};
+
 export type LearningTutorRequest = {
   module_title: string;
   lesson_title: string;
@@ -470,6 +486,24 @@ export async function generateLearningModule(
   }
 
   return response.json() as Promise<GenerateLearningModuleResponse>;
+}
+
+export async function generateLearningLesson(
+  payload: GenerateLearningLessonRequest,
+): Promise<GenerateLearningLessonResponse> {
+  const response = await fetch(`${API_BASE_URL}/ai/learning/lesson`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(await apiErrorMessage(response, "Learning lesson generation failed."));
+  }
+
+  return response.json() as Promise<GenerateLearningLessonResponse>;
 }
 
 export async function askLearningTutor(

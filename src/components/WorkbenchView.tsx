@@ -1171,7 +1171,7 @@ function analyzeQuestCode(quest: QuestData): CodeInsights {
     networkHook: hasWitness
       ? "CKB state appears through cell/script/witness/xUDT concepts; explain what is trusted on-chain versus checked locally."
       : hasChannel
-        ? "Fiber state appears through channel/HTLC/route terms; explain what prevents replay or stale state acceptance."
+        ? "Fiber state appears through channel/PTLC/route terms; explain what prevents replay or stale state acceptance."
         : "The quest mentions CKB/Fiber, but the code should be inspected for a concrete network-state binding.",
     riskFocus,
     vulnerableLine,
@@ -1251,11 +1251,11 @@ function learningResourcesFor(lower: string): LearningResource[] {
     {
       title: "Fiber Network Repository",
       url: "https://github.com/nervosnetwork/fiber",
-      reason: "Use this when a quest mentions Fiber channels, HTLCs, invoices, routing, or off-chain payment state.",
+      reason: "Use this when a quest mentions Fiber channels, PTLCs, invoices, routing, or off-chain payment state.",
     },
     {
       title: "JoyID Documentation",
-      url: "https://docs.joy.id/",
+      url: "https://docs.joyid.dev/",
       reason: "Understand the wallet/passkey proof that binds the learner to a quest run.",
     },
   ];
