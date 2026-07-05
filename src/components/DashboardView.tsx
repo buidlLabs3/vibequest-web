@@ -1,19 +1,12 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import {
-  Activity,
   ArrowRight,
   BookOpen,
-  CheckCircle,
-  Clock,
   Code2,
   GraduationCap,
   LayoutDashboard,
-  MessageSquare,
   PenLine,
   ReceiptText,
-  ShieldCheck,
-  Wallet,
-  XCircle,
 } from "lucide-react";
 
 import type { HealthResponse, LearningModuleDto, QuestRunRecord, RewardClaimRecord, UserQuestCounts } from "@/lib/api";
@@ -57,22 +50,37 @@ interface DashboardViewProps {
   historyPersistenceMessage: string | null;
 }
 
+type SavedWorkItem =
+  | {
+      kind: "cloud";
+      id: string;
+      title: string;
+      subtitle: string;
+      status: string;
+      updatedAt: string;
+      item: QuestRunRecord;
+    }
+  | {
+      kind: "local";
+      id: string;
+      title: string;
+      subtitle: string;
+      status: string;
+      updatedAt: string;
+      item: PracticeRecord;
+    };
+
 export default function DashboardView({
   walletBound,
-  walletLabel,
-  proofLogs,
-  health,
   questData,
   learningModule,
   activeLessonIndex,
   checkpointAnswers,
-  tutorMessages,
   notebookEntries,
   reflectionDraft,
   setReflectionDraft,
   onSaveReflection,
   onOpenLearningLesson,
-  gates,
   bossFightSolved,
   shipped,
   onConnectWallet,
@@ -83,866 +91,318 @@ export default function DashboardView({
   onOpenShipGate,
   onOpenQuestRunRecord,
   onOpenPracticeRecord,
-  onRedoQuestRun,
-  onRedoPracticeRecord,
   questRuns,
-  questStats,
   rewardClaims,
   practiceRecords,
   historyLoading,
   historyError,
   historyPersistenceMessage,
 }: DashboardViewProps) {
-  const infraReady = Boolean(
-    health?.integrations.openai && health.integrations.ckb_rpc && health.integrations.fiber_rpc,
-  );
-  const rewardLedgerReady = Boolean(health?.integrations.mongodb);
-  const passedGates = gates.filter((gate) => gate.isCompleted).length;
   const activeLesson = learningModule?.lessons[activeLessonIndex] ?? null;
-  const lessonRows = learningModule?.lessons.map((lesson, index) => {
-    const answer = checkpointAnswers[lesson.id];
-    const completed = answer === lesson.checkpoint.correct_index;
-    const attempted = answer !== undefined;
-    const relatedRuns = [
-      ...questRuns.filter((run) => run.learning_context?.lesson_id === lesson.id),
-      ...practiceRecords.filter((record) => record.questSnapshot?.learningContext?.lesson_id === lesson.id),
-    ];
-    return { lesson, index, answer, completed, attempted, relatedRuns };
-  }) ?? [];
+  const lessonRows = useMemo(() => {
+    return learningModule?.lessons.map((lesson, index) => {
+      const answer = checkpointAnswers[lesson.id];
+      const completed = answer === lesson.checkpoint.correct_index;
+      return { lesson, index, completed, attempted: answer !== undefined };
+    }) ?? [];
+  }, [checkpointAnswers, learningModule]);
+
   const completedLessons = lessonRows.filter((row) => row.completed).length;
   const lessonCount = learningModule?.lessons.length ?? 0;
-  const learnerQuestions = tutorMessages.filter((message) => message.role === "learner");
+  const moduleProgress = lessonCount > 0 ? Math.round((completedLessons / lessonCount) * 100) : 0;
   const activeLessonPassed = Boolean(activeLesson && checkpointAnswers[activeLesson.id] === activeLesson.checkpoint.correct_index);
-  const activeQuestIsCkbCells = Boolean(
-    questData &&
-      (questData.learningContext?.lesson_id?.startsWith("ckb-cells-") ||
-        questData.files.some((file) => `${file.path}\n${file.content}`.toLowerCase().includes("verifyckbcellproof"))),
-  );
-  const workspaceVerified = activeQuestIsCkbCells && Boolean(gates.find((gate) => gate.id === "verification")?.isCompleted);
-  const activePracticeRecord = activeQuestIsCkbCells && questData ? practiceRecords.find((record) => record.runId === questData.runId) : undefined;
-  const badgeRecorded = Boolean(
-    activePracticeRecord?.status === "completed" ||
-      activePracticeRecord?.status === "shipped" ||
-      bossFightSolved,
-  );
-  const ckbCellsPathActive = Boolean(
-    learningModule &&
-      (learningModule.title.toLowerCase().includes("ckb") ||
-        learningModule.lessons.some((lesson) => lesson.id.startsWith("ckb-cells-"))),
-  );
-  const prototypeAction = !ckbCellsPathActive
-    ? { label: "Open Learning", action: onOpenLearn }
-    : !activeLessonPassed
-      ? { label: "Pass Checkpoint", action: onOpenLearn }
-      : !activeQuestIsCkbCells
-        ? { label: "Generate Lesson Quest", action: onGenerateActiveLessonQuest }
-        : !workspaceVerified
-          ? { label: "Verify Workspace", action: onOpenWorkbench }
+  const passedGates = questData?.gates.filter((gate) => gate.isCompleted).length ?? 0;
+  const gateCount = questData?.gates.length ?? 0;
+  const latestReward = rewardClaims[0] ?? null;
+  const latestNote = notebookEntries[0] ?? null;
+
+  const savedWork = useMemo<SavedWorkItem[]>(() => {
+    const cloudIds = new Set(questRuns.map((run) => run.run_id));
+    const cloud = questRuns.map((run) => ({
+      kind: "cloud" as const,
+      id: run.run_id,
+      title: run.quest.title,
+      subtitle: run.learning_context?.lesson_title ?? run.skill_track,
+      status: run.status,
+      updatedAt: run.updated_at,
+      item: run,
+    }));
+    const local = practiceRecords
+      .filter((record) => !cloudIds.has(record.runId))
+      .map((record) => ({
+        kind: "local" as const,
+        id: record.runId,
+        title: record.title,
+        subtitle: record.questSnapshot?.learningContext?.lesson_title ?? record.source ?? "local practice",
+        status: record.status,
+        updatedAt: record.updatedAt,
+        item: record,
+      }));
+
+    return [...cloud, ...local]
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      .slice(0, 6);
+  }, [practiceRecords, questRuns]);
+
+  const nextStep = !walletBound
+    ? {
+        label: "Connect JoyID",
+        detail: "Connect once so generated lessons, quests, notes, and rewards stay attached to your account.",
+        action: onConnectWallet,
+      }
+    : !learningModule
+      ? {
+          label: "Start Learning",
+          detail: "Generate a focused module first. VibeQuest should teach before it asks you to ship code.",
+          action: onOpenLearn,
+        }
+      : activeLesson && !activeLessonPassed
+        ? {
+            label: "Continue Lesson",
+            detail: `Finish the checkpoint for ${activeLesson.title}, then unlock its practice quest.`,
+            action: () => onOpenLearningLesson(activeLessonIndex),
+          }
+        : !questData
+          ? {
+              label: "Generate Code Quest",
+              detail: "Turn the completed lesson into files, tests, a code explainer, and a boss challenge.",
+              action: onGenerateActiveLessonQuest,
+            }
           : !bossFightSolved
-            ? { label: "Solve Boss", action: onOpenWorkbench }
-            : { label: "Review Badge", action: onOpenWorkbench };
-  const prototypeSteps = [
-    {
-      label: "AI learning path",
-      detail: ckbCellsPathActive ? learningModule?.title ?? "active" : "Generate a fresh lesson path",
-      done: ckbCellsPathActive,
-    },
-    {
-      label: "Checkpoint passed",
-      detail: activeLessonPassed ? activeLesson?.title ?? "lesson complete" : `${completedLessons}/${lessonCount} lessons passed`,
-      done: activeLessonPassed,
-    },
-    {
-      label: "Quest generated",
-      detail: activeQuestIsCkbCells ? questData?.questName ?? "CKB Cell verifier quest" : "Generate from the completed lesson",
-      done: activeQuestIsCkbCells,
-    },
-    {
-      label: "Workspace verified",
-      detail: workspaceVerified ? "Generated files passed proof/test/denial checks" : "Run generated file checks",
-      done: workspaceVerified,
-    },
-    {
-      label: "Boss and badge",
-      detail: badgeRecorded ? "Learning completion is recorded" : "Answer the code-specific boss challenge",
-      done: badgeRecorded,
-    },
-  ];
-  const openTutorMessage = (message: TutorMessage) => {
-    const index = lessonRows.findIndex((row) =>
-      (message.lessonId && row.lesson.id === message.lessonId) ||
-      (message.lessonTitle && row.lesson.title === message.lessonTitle),
-    );
-    if (index >= 0) {
-      onOpenLearningLesson(index);
-      return;
-    }
-    onOpenLearn();
-  };
-  const completedPractice = practiceRecords.filter((record) => record.status === "completed" || record.status === "shipped").length;
-  const localInProgress = practiceRecords.filter((record) => record.status !== "completed" && record.status !== "shipped").length;
-  const questsStarted = Math.max(questStats.created, practiceRecords.length);
-  const completedCount = Math.max(questStats.completed, completedPractice);
-  const inProgressCount = Math.max(questStats.uncompleted, localInProgress);
-  const activities = buildActivities({
-    walletBound,
-    proofLogs,
-    infraReady,
-    rewardLedgerReady,
-    questData,
-    passedGates,
-    gateCount: gates.length,
-    bossFightSolved,
-    shipped,
-    learningModule,
-    completedLessons,
-    lessonCount,
-  });
-  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
-  const selectedRun = useMemo(() => {
-    if (questRuns.length === 0) return null;
-    return questRuns.find((run) => run.run_id === selectedRunId) ?? questRuns[0];
-  }, [questRuns, selectedRunId]);
+            ? {
+                label: "Open Workbench",
+                detail: "Read the generated code, run checks, and answer the boss question tied to the files.",
+                action: onOpenWorkbench,
+              }
+            : {
+                label: shipped ? "Review Shipped Badge" : "Ship Badge",
+                detail: shipped ? "The latest completed quest is recorded." : "Record the completed quest and prepare the reward claim.",
+                action: onOpenShipGate,
+              };
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-[1400px] flex-col gap-8 bg-[#0B0C0E] p-4 font-sans text-on-surface md:p-8">
-      <div className="flex flex-col gap-4 border-b border-glass-border pb-6 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="flex items-center gap-3 text-3xl font-extrabold tracking-tight text-white">
-            <LayoutDashboard className="h-8 w-8 text-electric-blue" />
-            Dashboard
-          </h1>
-          <p className="mt-1 max-w-xl text-sm text-on-surface-variant">
-            Your learning ledger: lessons, checkpoint answers, generated quests, code verification, boss evidence, notes, and reward state in one place.
-          </p>
-        </div>
-        <button
-          onClick={onOpenLearn}
-          className="flex items-center justify-center gap-2 rounded-xl bg-electric-blue px-5 py-3 text-sm font-extrabold uppercase tracking-wider text-black transition-all hover:brightness-110"
-        >
-          {learningModule ? "Continue Learning" : "Start Learning"}
-          <ArrowRight className="h-4 w-4" />
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.35fr_0.65fr]">
-        <div className="rounded-xl border border-electric-blue/25 bg-[#121820] p-6">
-          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-            <div>
-              <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-electric-blue">Current learning objective</span>
-              <h2 className="mt-2 text-2xl font-black tracking-tight text-white">{learningModule?.title ?? questData?.questName ?? "Choose interests and generate a learning path"}</h2>
-              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-on-surface-variant">
-                {activeLesson
-                  ? `Next lesson: ${activeLesson.title}. ${activeLesson.why_it_matters}`
-                  : questData
-                    ? "Inspect the generated code, run verification checks, answer the code-specific boss challenge, then record the badge."
-                    : "Start with interests and background, learn the concepts interactively, then generate quests from lessons you completed."}
-              </p>
-            </div>
-            <button
-              onClick={learningModule ? onOpenLearn : questData ? onOpenWorkbench : onOpenLearn}
-              className="rounded-xl bg-cyber-green px-5 py-3 text-sm font-black uppercase tracking-wider text-black transition-all hover:brightness-110"
-            >
-              {learningModule ? "Continue Lesson" : questData ? "Continue Quest" : "Build Path"}
-            </button>
-          </div>
-          <div className="mt-6 grid gap-3 md:grid-cols-5">
-            {learningModule
-              ? learningModule.lessons.slice(0, 5).map((lesson, index) => {
-                  const complete = checkpointAnswers[lesson.id] === lesson.checkpoint.correct_index;
-                  const active = index === activeLessonIndex;
-                  return (
-                    <div key={lesson.id} className={"rounded-lg border p-3 " + (complete ? "border-cyber-green/20 bg-cyber-green/5" : active ? "border-electric-blue/30 bg-electric-blue/10" : "border-glass-border bg-[#0B0C0E]/60")}>
-                      <span className="font-mono text-[10px] uppercase text-on-surface-variant">Lesson {index + 1}</span>
-                      <p className="mt-2 line-clamp-2 text-xs font-bold text-white">{complete ? "Complete" : active ? "Active" : lesson.title}</p>
-                    </div>
-                  );
-                })
-              : gates.map((gate) => (
-                  <div key={gate.id} className={"rounded-lg border p-3 " + (gate.isCompleted ? "border-cyber-green/20 bg-cyber-green/5" : "border-glass-border bg-[#0B0C0E]/60")}>
-                    <span className="font-mono text-[10px] uppercase text-on-surface-variant">{gate.name}</span>
-                    <p className="mt-2 text-xs font-bold text-white">{gate.isCompleted ? "Complete" : "Pending"}</p>
-                  </div>
-                ))}
-            {!learningModule ? (
-              <div className={"rounded-lg border p-3 " + (bossFightSolved ? "border-cyber-green/20 bg-cyber-green/5" : "border-glass-border bg-[#0B0C0E]/60")}>
-                <span className="font-mono text-[10px] uppercase text-on-surface-variant">Boss Challenge</span>
-                <p className="mt-2 text-xs font-bold text-white">{bossFightSolved ? "Solved" : "Pending"}</p>
-              </div>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
-          <MetricCard
-            icon={<Wallet className="h-5 w-5 text-electric-blue" />}
-            label="Wallet Proof"
-            value={walletBound ? "Bound" : "Missing"}
-            detail={walletBound ? walletLabel ?? "JoyID" : "Sign once to unlock quest generation"}
-            ready={walletBound}
-            actionLabel={walletBound ? "Manage" : "Connect"}
-            onAction={onConnectWallet}
-          />
-          <MetricCard
-            icon={<ShieldCheck className="h-5 w-5 text-cyber-green" />}
-            label="Gate Progress"
-            value={passedGates + "/" + gates.length}
-            detail={shipped ? "Proof envelope locked" : bossFightSolved ? "Boss solved" : "Complete gates to ship"}
-            ready={passedGates === gates.length && bossFightSolved}
-            actionLabel="Ship"
-            onAction={onOpenShipGate}
-          />
-        </div>
-      </div>
-
-      <section className="rounded-xl border border-cyber-green/20 bg-[#0F1915] p-5">
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+    <div className="mx-auto flex min-h-screen max-w-6xl flex-col gap-6 bg-[#0B0C0E] p-4 font-sans text-on-surface md:p-8">
+      <header className="rounded-2xl border border-electric-blue/20 bg-[#10151C] p-5">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-cyber-green">End-to-end prototype loop</span>
-            <h2 className="mt-2 text-xl font-black tracking-tight text-white">CKB Cells learning loop</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-on-surface-variant">
-              This is the narrowed MVP reviewers can test: start the reviewed CKB Cells path, pass one checkpoint, generate the cell verifier quest, verify the generated files, solve the boss challenge, then revisit the record here.
-            </p>
+            <div className="flex items-center gap-3">
+              <LayoutDashboard className="h-7 w-7 text-electric-blue" />
+              <p className="font-mono text-[10px] font-bold uppercase tracking-[0.24em] text-electric-blue">Dashboard</p>
+            </div>
+            <h1 className="mt-3 max-w-3xl text-3xl font-black tracking-tight text-white md:text-4xl">Learn it, inspect it, then ship it.</h1>
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-on-surface-variant">The dashboard now stays focused on learning progress, the active quest, saved work, notes, and reward state. Wallet proof logs, system logs, and run checklists belong outside this screen.</p>
           </div>
           <button
-            onClick={prototypeAction.action}
-            className="shrink-0 rounded-xl bg-cyber-green px-5 py-3 text-xs font-black uppercase tracking-wider text-black transition-all hover:brightness-110"
+            onClick={nextStep.action}
+            className="flex min-h-14 items-center justify-center gap-2 rounded-xl bg-electric-blue px-5 py-3 text-sm font-black uppercase tracking-wider text-black transition-all hover:brightness-110"
           >
-            {prototypeAction.label}
+            {nextStep.label}
+            <ArrowRight className="h-4 w-4" />
           </button>
         </div>
-        <div className="mt-5 grid gap-3 md:grid-cols-5">
-          {prototypeSteps.map((step, index) => (
-            <div key={step.label} className={"rounded-lg border p-3 " + (step.done ? "border-cyber-green/25 bg-cyber-green/5" : "border-glass-border bg-[#0B0C0E]/70")}>
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-mono text-[10px] uppercase text-on-surface-variant">{index + 1}</span>
-                {step.done ? <CheckCircle className="h-4 w-4 text-cyber-green" /> : <Clock className="h-4 w-4 text-warning-amber" />}
-              </div>
-              <p className="mt-2 line-clamp-2 text-xs font-bold text-white">{step.label}</p>
-              <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-on-surface-variant">{step.detail}</p>
-            </div>
-          ))}
+      </header>
+
+      <section className="rounded-2xl border border-glass-border bg-[#15181F] p-5">
+        <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
+          <div>
+            <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-cyber-green">Next best action</span>
+            <h2 className="mt-2 text-2xl font-black text-white">{nextStep.label}</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-on-surface-variant">{nextStep.detail}</p>
+          </div>
+          <div className="grid grid-cols-3 gap-2 sm:min-w-[360px]">
+            <ProgressChip label="Learn" value={learningModule ? `${moduleProgress}%` : "Start"} ready={Boolean(learningModule)} />
+            <ProgressChip label="Quest" value={questData ? (bossFightSolved ? "Solved" : "Open") : "None"} ready={Boolean(questData)} />
+            <ProgressChip label="Reward" value={latestReward?.status ?? (shipped ? "Ready" : "Later")} ready={Boolean(latestReward || shipped)} />
+          </div>
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <MetricCard
-          icon={<GraduationCap className="h-5 w-5 text-electric-blue" />}
-          label="Learning Path"
-          value={learningModule ? `${completedLessons}/${lessonCount}` : "New"}
-          detail={learningModule ? learningModule.title : "Generate lessons from your interests"}
-          ready={Boolean(learningModule)}
-          actionLabel={learningModule ? "Continue" : "Start"}
+      <section className="grid gap-6 lg:grid-cols-2">
+        <Panel
+          icon={<BookOpen className="h-5 w-5 text-electric-blue" />}
+          title="Current Lesson"
+          action={learningModule ? "Open" : "Start"}
           onAction={onOpenLearn}
-        />
-        <MetricCard
-          icon={<Code2 className="h-5 w-5 text-electric-blue" />}
-          label="Quests Started"
-          value={String(questsStarted)}
-          detail="Practice quests generated from lessons or prompts"
-          ready={questsStarted > 0}
-          actionLabel="Generate"
-          onAction={onOpenQuestRun}
-        />
-        <MetricCard
-          icon={<CheckCircle className="h-5 w-5 text-cyber-green" />}
-          label="Completed"
-          value={String(completedCount)}
-          detail="Quests where code, checks, and boss challenge are done"
-          ready={completedCount > 0}
-          actionLabel="Ship Gate"
-          onAction={onOpenShipGate}
-        />
-        <MetricCard
-          icon={<Clock className="h-5 w-5 text-warning-amber" />}
-          label="In Progress"
-          value={String(inProgressCount)}
-          detail="Quests you can continue from history"
-          ready={inProgressCount === 0 && questsStarted > 0}
-          actionLabel="Workbench"
-          onAction={onOpenWorkbench}
-        />
-        <MetricCard
-          icon={<ReceiptText className="h-5 w-5 text-electric-blue" />}
-          label="Practice Ledger"
-          value={String(practiceRecords.length)}
-          detail={completedPractice > 0 ? `${completedPractice} completed practice runs` : "Generated quest attempts appear here"}
-          ready={completedPractice > 0}
-          actionLabel="Review"
-          onAction={onOpenWorkbench}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 gap-8 xl:grid-cols-[1fr_360px]">
-        <div className="flex flex-col gap-6">
-          {learningModule ? (
-            <section className="rounded-xl border border-electric-blue/20 bg-[#121820] p-5">
-              <div className="mb-4 flex flex-col gap-2 border-b border-glass-border pb-3 md:flex-row md:items-center md:justify-between">
-                <div className="flex items-center gap-2">
-                  <GraduationCap className="h-5 w-5 text-electric-blue" />
-                  <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Lesson Records</h2>
-                </div>
-                <span className="font-mono text-xs text-cyber-green">{completedLessons}/{lessonCount} checkpoints passed</span>
-              </div>
-              <div className="grid gap-3 lg:grid-cols-2">
-                {lessonRows.map((row) => {
-                  const selectedAnswer = row.answer !== undefined ? row.lesson.checkpoint.options[row.answer]?.label : null;
-                  return (
-                    <button
-                      key={row.lesson.id}
-                      onClick={() => onOpenLearningLesson(row.index)}
-                      className={"rounded-lg border p-4 text-left transition-colors " + (row.completed ? "border-cyber-green/25 bg-cyber-green/5" : row.attempted ? "border-warning-amber/25 bg-warning-amber/5" : row.index === activeLessonIndex ? "border-electric-blue/40 bg-electric-blue/10" : "border-glass-border/70 bg-[#0B0C0E]/70 hover:border-electric-blue/30")}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <span className="font-mono text-[10px] uppercase text-on-surface-variant">Module {row.index + 1}</span>
-                          <h3 className="mt-1 text-sm font-black text-white">{row.lesson.title}</h3>
-                        </div>
-                        <span className={"rounded border px-2 py-0.5 font-mono text-[10px] uppercase " + (row.completed ? "border-cyber-green/20 bg-cyber-green/10 text-cyber-green" : row.attempted ? "border-warning-amber/20 bg-warning-amber/10 text-warning-amber" : "border-glass-border bg-black/20 text-on-surface-variant")}>
-                          {row.completed ? "passed" : row.attempted ? "review" : "open"}
-                        </span>
-                      </div>
-                      <p className="mt-3 line-clamp-2 text-xs leading-relaxed text-on-surface-variant">{row.lesson.why_it_matters}</p>
-                      <div className="mt-3 rounded border border-glass-border/70 bg-black/20 p-3">
-                        <p className="line-clamp-2 text-[11px] font-bold leading-relaxed text-white">{row.lesson.checkpoint.question}</p>
-                        <p className="mt-1 line-clamp-1 text-[10px] text-on-surface-variant">{selectedAnswer ? `Answered: ${selectedAnswer}` : "No checkpoint answer yet"}</p>
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2 font-mono text-[10px] uppercase text-on-surface-variant">
-                        <span>{row.relatedRuns.length} related quest{row.relatedRuns.length === 1 ? "" : "s"}</span>
-                        <span>/</span>
-                        <span>{notebookEntries.some((entry) => entry.lessonId === row.lesson.id) ? "note saved" : "no note"}</span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-          ) : null}
-
-          <section className="grid gap-6 lg:grid-cols-[1fr_0.9fr]">
-            <div className="rounded-xl border border-glass-border bg-[#16181D] p-5">
-              <div className="mb-4 flex items-center justify-between border-b border-glass-border pb-3">
-                <div className="flex items-center gap-2">
-                  <PenLine className="h-5 w-5 text-cyber-green" />
-                  <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Learning Notebook</h2>
-                </div>
-                <span className="font-mono text-xs text-on-surface-variant">{notebookEntries.length}</span>
-              </div>
-              {activeLesson ? (
-                <div className="grid gap-3">
-                  <div>
-                    <span className="font-mono text-[10px] uppercase text-electric-blue">Current lesson reflection</span>
-                    <h3 className="mt-1 text-sm font-bold text-white">{activeLesson.title}</h3>
-                  </div>
-                  <textarea
-                    value={reflectionDraft}
-                    onChange={(event) => setReflectionDraft(event.target.value)}
-                    rows={7}
-                    placeholder="Write what you now understand, what still feels fuzzy, and the exact field you would mutate in a denial test."
-                    className="min-h-40 resize-y rounded-lg border border-glass-border bg-[#0B0C0E] p-3 text-xs leading-relaxed text-white outline-none placeholder:text-on-surface-variant focus:border-electric-blue/50"
-                  />
-                  <button onClick={onSaveReflection} className="w-fit rounded border border-cyber-green/30 px-4 py-2 font-mono text-[10px] font-bold uppercase text-cyber-green hover:bg-cyber-green/10">
-                    Save Reflection
-                  </button>
-                </div>
-              ) : (
-                <div className="rounded-lg border border-dashed border-glass-border p-5 text-center text-xs text-on-surface-variant">
-                  Generate a learning path to start writing lesson notes.
-                </div>
-              )}
-            </div>
-
-            <div className="rounded-xl border border-glass-border bg-[#16181D] p-5">
-              <div className="mb-4 flex items-center justify-between border-b border-glass-border pb-3">
-                <div className="flex items-center gap-2">
-                  <MessageSquare className="h-5 w-5 text-electric-blue" />
-                  <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Tutor Questions</h2>
-                </div>
-                <span className="font-mono text-xs text-on-surface-variant">{learnerQuestions.length}</span>
-              </div>
-              <div className="flex max-h-[300px] flex-col gap-2 overflow-y-auto pr-1">
-                {learnerQuestions.length > 0 ? learnerQuestions.slice(0, 8).map((message) => (
-                  <button key={message.id} onClick={() => openTutorMessage(message)} className="rounded-lg border border-electric-blue/20 bg-electric-blue/10 p-3 text-left transition-colors hover:border-electric-blue/50">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="font-mono text-[10px] uppercase text-electric-blue">Question</span>
-                      <span className="font-mono text-[10px] uppercase text-on-surface-variant">Open lesson</span>
-                    </div>
-                    <p className="mt-1 text-xs leading-relaxed text-white">{message.text}</p>
-                    <p className="mt-2 line-clamp-1 text-[11px] text-on-surface-variant">{message.lessonTitle ?? "Current learning path"}</p>
-                    {message.createdAt ? <p className="mt-1 font-mono text-[10px] text-on-surface-variant">{new Date(message.createdAt).toLocaleString()}</p> : null}
-                  </button>
-                )) : (
-                  <div className="rounded-lg border border-dashed border-glass-border p-5 text-center text-xs text-on-surface-variant">
-                    Questions you ask inside lessons will appear here for review.
-                  </div>
-                )}
-              </div>
-              {notebookEntries.length > 0 ? (
-                <div className="mt-4 border-t border-glass-border pt-4">
-                  <h3 className="font-mono text-[10px] font-bold uppercase text-white">Recent Notes</h3>
-                  <div className="mt-2 flex max-h-[180px] flex-col gap-2 overflow-y-auto pr-1">
-                    {notebookEntries.slice(0, 4).map((entry) => (
-                      <button key={entry.id} onClick={() => entry.lessonId ? onOpenLearningLesson(Math.max(0, lessonRows.findIndex((row) => row.lesson.id === entry.lessonId))) : onOpenLearn()} className="rounded border border-glass-border/70 bg-[#0B0C0E]/70 p-3 text-left hover:border-electric-blue/30">
-                        <p className="line-clamp-1 text-xs font-bold text-white">{entry.lessonTitle ?? "Learning note"}</p>
-                        <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-on-surface-variant">{entry.text}</p>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          </section>
-
-          {learningModule ? (
-            <div className="rounded-xl border border-electric-blue/20 bg-[#121820] p-5">
-              <div className="mb-4 flex items-center justify-between border-b border-glass-border pb-3">
-                <div className="flex items-center gap-2">
-                  <BookOpen className="h-5 w-5 text-electric-blue" />
-                  <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Active Learning Path</h2>
-                </div>
-                <span className="font-mono text-xs text-cyber-green">{completedLessons}/{lessonCount}</span>
-              </div>
-              <div className="grid gap-2 md:grid-cols-2">
-                {learningModule.lessons.map((lesson, index) => {
-                  const complete = checkpointAnswers[lesson.id] === lesson.checkpoint.correct_index;
-                  const active = index === activeLessonIndex;
-                  return (
-                    <button key={lesson.id} onClick={() => onOpenLearningLesson(index)} className={"rounded-lg border p-3 text-left transition-colors " + (complete ? "border-cyber-green/25 bg-cyber-green/5" : active ? "border-electric-blue/40 bg-electric-blue/10" : "border-glass-border/70 bg-[#0B0C0E]/70 hover:border-electric-blue/30")}>
-                      <div className="flex items-center justify-between gap-3">
-                        <h3 className="line-clamp-1 text-xs font-bold text-white">{index + 1}. {lesson.title}</h3>
-                        <span className="font-mono text-[10px] uppercase text-on-surface-variant">{complete ? "done" : active ? "next" : "up next"}</span>
-                      </div>
-                      <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-on-surface-variant">{lesson.why_it_matters}</p>
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <button onClick={() => onOpenLearningLesson(activeLessonIndex)} className="rounded border border-electric-blue/30 px-3 py-1.5 font-mono text-[10px] font-bold uppercase text-electric-blue hover:bg-electric-blue/10">
-                  Continue Lesson
-                </button>
-                <button onClick={onGenerateActiveLessonQuest} className="rounded border border-cyber-green/30 px-3 py-1.5 font-mono text-[10px] font-bold uppercase text-cyber-green hover:bg-cyber-green/10">
-                  Generate Practice Quest
-                </button>
-              </div>
-            </div>
-          ) : null}
-
-          <div className="rounded-xl border border-glass-border bg-[#16181D] p-5">
-            <div className="mb-4 flex items-center justify-between border-b border-glass-border pb-3">
+        >
+          {learningModule && activeLesson ? (
+            <div className="grid gap-4">
               <div>
-                <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Quest Review</h2>
-                <p className="mt-1 text-xs text-on-surface-variant">Reopen saved quests with code, boss attempts, tutor notes, and next actions.</p>
+                <p className="font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">{completedLessons}/{lessonCount} modules complete</p>
+                <h3 className="mt-2 text-xl font-black text-white">{activeLesson.title}</h3>
+                <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-on-surface-variant">{activeLesson.why_it_matters}</p>
               </div>
-              <span className="font-mono text-xs text-on-surface-variant">{historyLoading ? "syncing" : questRuns.length}</span>
-            </div>
-            {historyError ? (
-              <div className="rounded-lg border border-warning-amber/30 bg-warning-amber/10 p-3 text-xs text-warning-amber">
-                {historyError}
+              <div className="h-2 overflow-hidden rounded-full bg-[#0B0C0E]">
+                <div className="h-full rounded-full bg-cyber-green transition-all" style={{ width: `${moduleProgress}%` }} />
               </div>
-            ) : questRuns.length > 0 && selectedRun ? (
-              <div className="grid gap-4 xl:grid-cols-[0.82fr_1.18fr]">
-                <div className="flex max-h-[520px] flex-col gap-2 overflow-y-auto pr-1">
-                  {questRuns.slice(0, 12).map((run) => {
-                    const selected = run.run_id === selectedRun.run_id;
-                    const gateCount = run.progress.gates.length || 3;
-                    const passed = run.progress.gates.filter((gate) => gate.is_completed).length;
-                    return (
-                      <button
-                        key={run.run_id}
-                        onClick={() => setSelectedRunId(run.run_id)}
-                        className={"rounded-lg border p-3 text-left transition-colors " + (selected ? "border-electric-blue/50 bg-electric-blue/10" : "border-glass-border/70 bg-[#0B0C0E] hover:border-electric-blue/25")}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <h3 className="line-clamp-1 text-xs font-bold text-white">{run.quest.title}</h3>
-                          <span className={"rounded border px-2 py-0.5 font-mono text-[10px] uppercase " + (run.status === "completed" ? "border-cyber-green/20 bg-cyber-green/10 text-cyber-green" : "border-warning-amber/20 bg-warning-amber/10 text-warning-amber")}>{run.status === "completed" ? "done" : "open"}</span>
-                        </div>
-                        <p className="mt-2 font-mono text-[10px] uppercase text-on-surface-variant">{passed}/{gateCount} gates / {run.boss_attempts.length} boss / {run.code_tutor_messages.length} tutor</p>
-                        {run.learning_context ? <p className="mt-2 line-clamp-1 text-[11px] text-electric-blue">{run.learning_context.lesson_title}</p> : null}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="rounded-xl border border-glass-border bg-[#0B0C0E] p-4">
-                  <div className="flex flex-col gap-3 border-b border-glass-border pb-4 md:flex-row md:items-start md:justify-between">
-                    <div>
-                      <span className="font-mono text-[10px] uppercase tracking-wider text-electric-blue">Selected Quest</span>
-                      <h3 className="mt-1 text-lg font-black text-white">{selectedRun.quest.title}</h3>
-                      <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-on-surface-variant">{selectedRun.quest.build_objective}</p>
-                    </div>
-                    <div className="flex shrink-0 flex-wrap gap-2">
-                      <button onClick={() => onOpenQuestRunRecord(selectedRun)} className="rounded border border-electric-blue/30 px-3 py-2 font-mono text-[10px] font-bold uppercase text-electric-blue hover:bg-electric-blue/10">
-                        Open Workbench
-                      </button>
-                      <button onClick={() => onRedoQuestRun(selectedRun)} className="rounded border border-glass-border px-3 py-2 font-mono text-[10px] font-bold uppercase text-on-surface-variant hover:text-white">
-                        Redo Similar
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 grid gap-3 md:grid-cols-4">
-                    <ReviewStat label="Files" value={String(selectedRun.quest.workbench_files.length)} />
-                    <ReviewStat label="Gates" value={`${selectedRun.progress.gates.filter((gate) => gate.is_completed).length}/${selectedRun.progress.gates.length || 3}`} />
-                    <ReviewStat label="Boss" value={selectedRun.progress.boss_fight_solved ? "Solved" : `${selectedRun.boss_attempts.length} tries`} />
-                    <ReviewStat label="Tutor" value={`${selectedRun.code_tutor_messages.filter((message) => message.role === "mentor").length} notes`} />
-                  </div>
-
-                  {selectedRun.learning_context ? (
-                    <div className="mt-4 rounded-lg border border-electric-blue/20 bg-electric-blue/10 p-3">
-                      <p className="font-mono text-[10px] uppercase text-electric-blue">Lesson Source</p>
-                      <p className="mt-1 text-xs font-bold text-white">{selectedRun.learning_context.module_title}</p>
-                      <p className="mt-1 text-xs text-on-surface-variant">{selectedRun.learning_context.lesson_title}</p>
-                    </div>
-                  ) : null}
-
-                  <div className="mt-4 grid gap-3 md:grid-cols-2">
-                    <div className="rounded-lg border border-glass-border bg-[#111318] p-3">
-                      <h4 className="font-mono text-[10px] font-bold uppercase text-cyber-green">Generated Files</h4>
-                      <div className="mt-2 space-y-2">
-                        {selectedRun.quest.workbench_files.map((file) => (
-                          <div key={file.path} className="rounded border border-glass-border/60 bg-black/20 px-2 py-1.5">
-                            <p className="font-mono text-[11px] text-white">{file.path}</p>
-                            <p className="font-mono text-[10px] uppercase text-on-surface-variant">{file.language}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="rounded-lg border border-glass-border bg-[#111318] p-3">
-                      <h4 className="font-mono text-[10px] font-bold uppercase text-cyber-green">Learning Evidence</h4>
-                      <div className="mt-2 space-y-2 text-xs leading-relaxed text-on-surface-variant">
-                        <p>Latest boss: {selectedRun.boss_attempts.at(-1)?.feedback ?? "No boss attempt yet."}</p>
-                        <p>Latest tutor: {selectedRun.code_tutor_messages.filter((message) => message.role === "mentor").at(-1)?.text ?? "No tutor question saved yet."}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 rounded-lg border border-glass-border bg-[#111318] p-3">
-                    <h4 className="font-mono text-[10px] font-bold uppercase text-warning-amber">Next Best Action</h4>
-                    <p className="mt-2 text-xs leading-relaxed text-on-surface-variant">
-                      {selectedRun.status === "completed"
-                        ? "Review the code and tutor notes, then redo a similar quest if you want spaced repetition."
-                        : selectedRun.progress.gates.some((gate) => !gate.is_completed)
-                          ? "Open the workbench, inspect generated files, and run file checks before answering the boss challenge."
-                          : !selectedRun.progress.boss_fight_solved
-                            ? "Open the workbench and solve the boss challenge using the generated code and denial test."
-                            : "Open Ship Gate when you are ready to lock the proof envelope."}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className={"rounded-lg border border-dashed p-5 text-center text-xs " + (historyPersistenceMessage ? "border-warning-amber/40 bg-warning-amber/5 text-warning-amber" : "border-glass-border text-on-surface-variant")}>
-                {historyPersistenceMessage ?? "No saved cloud quests yet. Local learning records below can still be reviewed when available."}
-              </div>
-            )}
-          </div>
-
-          <div className="rounded-xl border border-glass-border bg-[#16181D] p-5">
-            <div className="mb-4 flex items-center justify-between border-b border-glass-border pb-3">
-              <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Practice Quest Ledger</h2>
-              <span className="font-mono text-xs text-on-surface-variant">{practiceRecords.length}</span>
-            </div>
-            {practiceRecords.length > 0 ? (
-              <div className="flex max-h-[320px] flex-col gap-2 overflow-y-auto pr-1">
-                {practiceRecords.slice(0, 8).map((record) => (
-                  <div key={record.runId} className="rounded-lg border border-glass-border/70 bg-[#0B0C0E] p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <h3 className="line-clamp-1 text-xs font-bold text-white">{record.title}</h3>
-                      <span className={"rounded border px-2 py-0.5 font-mono text-[10px] uppercase " + practiceStatusClass(record.status)}>
-                        {record.status}
-                      </span>
-                    </div>
-                    <div className="mt-2 flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase text-on-surface-variant">
-                      <span>{record.savedToCloud ? "cloud saved" : "local review"}</span>
-                      <span>/</span>
-                      <span>{record.source ?? "vibequest"}</span>
-                      <span>/</span>
-                      <span>{new Date(record.updatedAt).toLocaleDateString()}</span>
-                    </div>
-                    {record.warning ? (
-                      <p className="mt-2 line-clamp-2 text-[11px] leading-relaxed text-warning-amber">{record.warning}</p>
-                    ) : null}
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button onClick={() => onOpenPracticeRecord(record)} className="rounded border border-electric-blue/30 px-3 py-1.5 font-mono text-[10px] font-bold uppercase text-electric-blue hover:bg-electric-blue/10">
-                        {record.questSnapshot ? "Review / Continue" : "Details"}
-                      </button>
-                      <button onClick={() => onRedoPracticeRecord(record)} className="rounded border border-glass-border px-3 py-1.5 font-mono text-[10px] font-bold uppercase text-on-surface-variant hover:text-white">
-                        Redo Similar
-                      </button>
-                    </div>
-                  </div>
+              <div className="grid gap-2 sm:grid-cols-5">
+                {lessonRows.slice(0, 5).map((row) => (
+                  <button
+                    key={row.lesson.id}
+                    onClick={() => onOpenLearningLesson(row.index)}
+                    className={"min-h-16 rounded-lg border p-2 text-left transition-colors " + (row.completed ? "border-cyber-green/25 bg-cyber-green/5" : row.index === activeLessonIndex ? "border-electric-blue/45 bg-electric-blue/10" : "border-glass-border bg-[#0B0C0E]/70 hover:border-electric-blue/30")}
+                  >
+                    <span className="font-mono text-[10px] uppercase text-on-surface-variant">{row.index + 1}</span>
+                    <p className="mt-1 line-clamp-2 text-[11px] font-bold text-white">{row.completed ? "Done" : row.lesson.title}</p>
+                  </button>
                 ))}
               </div>
-            ) : (
-              <div className="rounded-lg border border-dashed border-glass-border p-5 text-center text-xs text-on-surface-variant">
-                Generate a lesson-backed quest to build a reviewable learning trail.
+            </div>
+          ) : (
+            <EmptyState text="Generate a role-based learning path first. This card will then show the active module and checkpoint progress." action="Start Learning" onClick={onOpenLearn} />
+          )}
+        </Panel>
+
+        <Panel
+          icon={<Code2 className="h-5 w-5 text-cyber-green" />}
+          title="Active Quest"
+          action={questData ? "Open" : activeLessonPassed ? "Generate" : "Quest"}
+          onAction={questData ? onOpenWorkbench : activeLessonPassed ? onGenerateActiveLessonQuest : onOpenQuestRun}
+        >
+          {questData ? (
+            <div className="grid gap-4">
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">{questData.learningContext?.lesson_title ?? "Practice quest"}</p>
+                <h3 className="mt-2 text-xl font-black text-white">{questData.questName}</h3>
+                <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-on-surface-variant">{questData.description}</p>
               </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <MiniStat label="Files" value={String(questData.files.length)} />
+                <MiniStat label="Review" value={passedGates === gateCount && gateCount > 0 ? "Checked" : "Pending"} />
+                <MiniStat label="Boss" value={bossFightSolved ? "Solved" : "Open"} />
+              </div>
+            </div>
+          ) : (
+            <EmptyState
+              text={activeLessonPassed ? "Your checkpoint is passed. Generate a quest from this lesson's exact proof boundary." : "Pass a lesson checkpoint before opening a code quest."}
+              action={activeLessonPassed ? "Generate Quest" : "Open Learn"}
+              onClick={activeLessonPassed ? onGenerateActiveLessonQuest : onOpenLearn}
+            />
+          )}
+        </Panel>
+      </section>
+
+      <section className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+        <Panel icon={<GraduationCap className="h-5 w-5 text-electric-blue" />} title="Saved Work" action="All Quests" onAction={onOpenQuestRun}>
+          <div className="grid gap-2">
+            {historyError ? <p className="rounded-lg border border-warning-amber/20 bg-warning-amber/5 p-3 text-xs text-warning-amber">Cloud history is syncing. Local saved work remains available.</p> : null}
+            {historyLoading && savedWork.length === 0 ? <p className="text-xs text-on-surface-variant">Loading saved quests...</p> : null}
+            {savedWork.length > 0 ? (
+              savedWork.map((work) => (
+                <button
+                  key={`${work.kind}-${work.id}`}
+                  onClick={() => work.kind === "cloud" ? onOpenQuestRunRecord(work.item) : onOpenPracticeRecord(work.item)}
+                  className="grid gap-1 rounded-xl border border-glass-border bg-[#0B0C0E] p-4 text-left transition-colors hover:border-electric-blue/35 md:grid-cols-[1fr_auto] md:items-center"
+                >
+                  <span>
+                    <span className="font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">{work.kind === "cloud" ? "Saved" : "Local"} / {formatDate(work.updatedAt)}</span>
+                    <span className="mt-1 block line-clamp-1 text-sm font-black text-white">{work.title}</span>
+                    <span className="mt-1 block line-clamp-1 text-xs text-electric-blue">{work.subtitle}</span>
+                  </span>
+                  <span className="font-mono text-[10px] font-bold uppercase text-cyber-green">{work.status}</span>
+                </button>
+              ))
+            ) : (
+              <EmptyState text={historyPersistenceMessage ?? "Saved quests will appear here after you generate or complete a run."} action="Generate Quest" onClick={onOpenQuestRun} />
             )}
           </div>
+        </Panel>
 
-          <div className="rounded-xl border border-glass-border bg-[#16181D] p-5">
-            <div className="mb-4 flex items-center justify-between border-b border-glass-border pb-3">
-              <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Reward Claims</h2>
-              <span className="font-mono text-xs text-on-surface-variant">{rewardClaims.length}</span>
-            </div>
-            {rewardClaims.length > 0 ? (
-              <div className="flex max-h-[280px] flex-col gap-2 overflow-y-auto pr-1">
-                {rewardClaims.slice(0, 8).map((claim) => {
-                  const payoutDisabled = claim.fiber_payment?.status === "verified-no-payout";
-                  const payoutNote = payoutDisabled
-                    ? "verified, payout disabled until funded Fiber node is configured"
-                    : claim.fiber_payment?.payment_hash
-                      ? `payment ${shortId(claim.fiber_payment.payment_hash)}`
-                      : claim.fiber_payment?.status ?? "no payment receipt yet";
-                  return (
-                    <div key={claim.claim_id} className="rounded-lg border border-glass-border/70 bg-[#0B0C0E] p-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="font-mono text-[10px] uppercase text-on-surface-variant">{shortId(claim.run_id)}</span>
-                        <span className={"rounded border px-2 py-0.5 font-mono text-[10px] uppercase " + (payoutDisabled ? "border-warning-amber/20 bg-warning-amber/10 text-warning-amber" : rewardStatusClass(claim.status))}>
-                          {payoutDisabled ? "payout disabled" : claim.status}
-                        </span>
-                      </div>
-                      <p className="mt-2 text-sm font-bold text-white">{claim.amount_shannons} {claim.currency}</p>
-                      <p className={"mt-1 line-clamp-2 font-mono text-[10px] " + (payoutDisabled ? "text-warning-amber" : "text-on-surface-variant")}>
-                        {payoutNote}
-                      </p>
-                      {claim.error ? <p className="mt-1 line-clamp-2 text-[11px] text-red-300">{claim.error}</p> : null}
-                    </div>
-                  );
-                })}
+        <div className="grid gap-6">
+          <Panel icon={<PenLine className="h-5 w-5 text-cyber-green" />} title="Notebook" action="Save" onAction={onSaveReflection}>
+            {activeLesson ? (
+              <div className="grid gap-3">
+                <p className="line-clamp-2 text-sm font-bold text-white">{activeLesson.title}</p>
+                {latestNote ? <p className="rounded-lg border border-glass-border bg-[#0B0C0E]/70 p-3 text-xs leading-relaxed text-on-surface-variant">Latest: {latestNote.text}</p> : null}
+                <textarea
+                  value={reflectionDraft}
+                  onChange={(event) => setReflectionDraft(event.target.value)}
+                  rows={5}
+                  placeholder="Write what the code trusts, what can be attacked, and the denial test you would run."
+                  className="resize-y rounded-lg border border-glass-border bg-[#0B0C0E] p-3 text-xs leading-relaxed text-white outline-none placeholder:text-on-surface-variant focus:border-electric-blue/50"
+                />
               </div>
             ) : (
-              <div className="rounded-lg border border-dashed border-glass-border p-5 text-center text-xs text-on-surface-variant">
-                Completed quests with reward invoices will appear here.
-              </div>
+              <EmptyState text="Start a learning path to keep lesson reflections here." action="Open Learn" onClick={onOpenLearn} />
             )}
-          </div>
-          <div className="rounded-xl border border-glass-border bg-[#16181D] p-5">
-            <div className="mb-4 flex items-center justify-between border-b border-glass-border pb-3">
-              <div className="flex items-center gap-2">
-                <Activity className="h-5 w-5 text-electric-blue" />
-                <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">System Log</h2>
-              </div>
-              <span className="font-mono text-xs text-on-surface-variant">{activities.length}</span>
-            </div>
-            <div className="flex max-h-[340px] flex-col gap-2 overflow-y-auto pr-1">
-              {activities.map((activity) => (
-                <div key={activity.id} className="rounded-lg border border-glass-border/70 bg-[#0B0C0E]/70 p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <h3 className="text-xs font-bold text-white">{activity.title}</h3>
-                    {activity.ready ? <CheckCircle className="h-3.5 w-3.5 text-cyber-green" /> : <Clock className="h-3.5 w-3.5 text-warning-amber" />}
-                  </div>
-                  <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-on-surface-variant">{activity.description}</p>
-                </div>
-              ))}
-            </div>
-          </div>
+          </Panel>
 
-          <div className="rounded-xl border border-glass-border bg-[#16181D] p-5">
-            <div className="mb-4 flex items-center justify-between border-b border-glass-border pb-3">
-              <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Proof History</h2>
-              <span className="font-mono text-xs text-on-surface-variant">{proofLogs.length}</span>
-            </div>
-            <div className="flex max-h-[280px] flex-col gap-2 overflow-y-auto pr-1">
-              {proofLogs.length > 0 ? (
-                proofLogs.map((log) => (
-                  <div key={log.id} className="rounded-lg border border-glass-border/70 bg-[#0B0C0E] p-3 font-mono text-xs">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="font-semibold uppercase text-white">{log.type}</span>
-                      <span className="rounded border border-cyber-green/20 bg-cyber-green/10 px-2 py-0.5 text-[10px] uppercase text-cyber-green">
-                        {log.status}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-[10px] text-on-surface-variant">Proof {log.id} / {log.timestamp}</p>
-                  </div>
-                ))
-              ) : (
-                <div className="rounded-lg border border-dashed border-glass-border p-5 text-center text-xs text-on-surface-variant">
-                  No signed wallet proof yet.
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-glass-border bg-[#16181D] p-5">
-            <div className="mb-4 flex items-center justify-between border-b border-glass-border pb-3">
-              <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Run Checklist</h2>
-              <span className="font-mono text-xs text-cyber-green">{passedGates}/{gates.length}</span>
-            </div>
-            <div className="flex flex-col gap-3">
-              {gates.map((gate) => (
-                <div key={gate.id} className="flex items-start gap-3 rounded-lg bg-[#0B0C0E]/70 p-3">
-                  {gate.isCompleted ? <CheckCircle className="mt-0.5 h-4 w-4 text-cyber-green" /> : <XCircle className="mt-0.5 h-4 w-4 text-on-surface-variant" />}
-                  <div>
-                    <h3 className="font-mono text-xs font-bold uppercase text-white">{gate.name}</h3>
-                    <p className="mt-1 text-[11px] leading-relaxed text-on-surface-variant">{gate.description}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <Panel icon={<ReceiptText className="h-5 w-5 text-warning-amber" />} title="Ship And Reward" action="Open" onAction={onOpenShipGate}>
+            <button onClick={onOpenShipGate} className="w-full rounded-xl border border-glass-border bg-[#0B0C0E] p-4 text-left transition-colors hover:border-electric-blue/35">
+              <p className="font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">Latest status</p>
+              <h3 className="mt-2 text-lg font-black text-white">{latestReward ? latestReward.status : shipped ? "Badge ready" : bossFightSolved ? "Ready to ship" : "Finish quest first"}</h3>
+              <p className="mt-2 text-xs leading-relaxed text-on-surface-variant">
+                {latestReward ? `${latestReward.amount_shannons} ${latestReward.currency}` : "Completed quests can be recorded here when the boss challenge is solved."}
+              </p>
+            </button>
+          </Panel>
         </div>
-      </div>
+      </section>
     </div>
   );
 }
 
-function ReviewStat({ label, value }: { label: string; value: string }) {
+function ProgressChip({ label, value, ready }: { label: string; value: string; ready: boolean }) {
   return (
-    <div className="rounded-lg border border-glass-border bg-[#111318] p-3">
+    <div className="rounded-lg border border-glass-border bg-[#0B0C0E] p-3 text-center">
+      <p className="font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">{label}</p>
+      <p className={"mt-1 truncate text-xs font-black uppercase " + (ready ? "text-cyber-green" : "text-warning-amber")}>{value}</p>
+    </div>
+  );
+}
+
+function Panel({
+  icon,
+  title,
+  action,
+  onAction,
+  children,
+}: {
+  icon: ReactNode;
+  title: string;
+  action: string;
+  onAction: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <section className="rounded-2xl border border-glass-border bg-[#15181F] p-5">
+      <div className="mb-5 flex items-center justify-between gap-4 border-b border-glass-border pb-3">
+        <div className="flex items-center gap-2">
+          {icon}
+          <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">{title}</h2>
+        </div>
+        <button onClick={onAction} className="rounded border border-electric-blue/30 px-3 py-2 font-mono text-[10px] font-bold uppercase text-electric-blue hover:bg-electric-blue/10">
+          {action}
+        </button>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-glass-border bg-[#0B0C0E]/70 p-3">
       <p className="font-mono text-[10px] uppercase text-on-surface-variant">{label}</p>
       <p className="mt-1 text-sm font-black text-white">{value}</p>
     </div>
   );
 }
 
-function MetricCard({
-  icon,
-  label,
-  value,
-  detail,
-  ready,
-  actionLabel,
-  onAction,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: string;
-  detail: string;
-  ready: boolean;
-  actionLabel: string;
-  onAction: () => void;
-}) {
+function EmptyState({ text, action, onClick }: { text: string; action: string; onClick: () => void }) {
   return (
-    <div className={"flex min-h-44 flex-col justify-between rounded-xl border p-5 " + (ready ? "border-glass-border bg-[#16181D]" : "border-warning-amber/25 bg-warning-amber/5")}>
-      <div className="flex items-start justify-between gap-3">
-        <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">{label}</span>
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5">{icon}</div>
-      </div>
-      <div>
-        <span className={"font-mono text-xs font-bold uppercase " + (ready ? "text-cyber-green" : "text-warning-amber")}>{value}</span>
-        <p className="mt-1 line-clamp-2 text-lg font-bold text-white">{detail}</p>
-        <button onClick={onAction} className="mt-4 text-xs font-bold uppercase tracking-wider text-electric-blue hover:underline">
-          {actionLabel}
-        </button>
-      </div>
+    <div className="rounded-lg border border-dashed border-glass-border p-5 text-center">
+      <p className="text-xs leading-relaxed text-on-surface-variant">{text}</p>
+      <button onClick={onClick} className="mt-4 rounded border border-electric-blue/30 px-3 py-2 font-mono text-[10px] font-bold uppercase text-electric-blue hover:bg-electric-blue/10">
+        {action}
+      </button>
     </div>
   );
 }
 
-function buildActivities({
-  walletBound,
-  proofLogs,
-  infraReady,
-  rewardLedgerReady,
-  questData,
-  passedGates,
-  gateCount,
-  bossFightSolved,
-  shipped,
-  learningModule,
-  completedLessons,
-  lessonCount,
-}: {
-  walletBound: boolean;
-  proofLogs: ProofLog[];
-  infraReady: boolean;
-  rewardLedgerReady: boolean;
-  questData: QuestData | null;
-  passedGates: number;
-  gateCount: number;
-  bossFightSolved: boolean;
-  shipped: boolean;
-  learningModule: LearningModuleDto | null;
-  completedLessons: number;
-  lessonCount: number;
-}) {
-  const proofEvents = proofLogs.slice(0, 3).map((log) => ({
-    id: "proof-" + log.id,
-    title: "Wallet proof signed",
-    description: log.type + " proof " + log.id + " returned " + log.status + ".",
-    time: log.timestamp,
-    ready: true,
-  }));
-
-  return [
-    {
-      id: "wallet",
-      title: walletBound ? "Wallet ready" : "Wallet proof required",
-      description: walletBound ? "A JoyID proof is bound and quest generation is unlocked." : "Connect JoyID and sign a VibeQuest proof before generating quests.",
-      time: "now",
-      ready: walletBound,
-    },
-    {
-      id: "infra",
-      title: infraReady ? "Generation backend ready" : "Generation backend blocked",
-      description: infraReady ? "OpenAI, CKB RPC, and Fiber RPC are reachable." : "OpenAI, CKB RPC, or Fiber RPC is not ready yet.",
-      time: "live",
-      ready: infraReady,
-    },
-    {
-      id: "ledger",
-      title: rewardLedgerReady ? "Reward ledger ready" : "Reward ledger waiting",
-      description: rewardLedgerReady ? "MongoDB can store quest runs and reward claims." : "MongoDB is not reachable yet, so reward claims cannot be locked.",
-      time: "live",
-      ready: rewardLedgerReady,
-    },
-    {
-      id: "learning",
-      title: learningModule ? "Learning path active" : "No learning path",
-      description: learningModule ? `${learningModule.title}: ${completedLessons} of ${lessonCount} lessons complete.` : "Generate a module from your interests before jumping into quests.",
-      time: learningModule ? "active" : "pending",
-      ready: Boolean(learningModule),
-    },
-    {
-      id: "quest",
-      title: questData ? "Quest loaded" : "No active quest",
-      description: questData ? questData.questName : "Generate a quest to populate the workbench and boss challenge.",
-      time: questData ? "active" : "pending",
-      ready: Boolean(questData),
-    },
-    {
-      id: "gates",
-      title: "Verification gates",
-      description: passedGates + " of " + gateCount + " gates are complete.",
-      time: bossFightSolved ? "boss solved" : "in progress",
-      ready: passedGates === gateCount && bossFightSolved,
-    },
-    {
-      id: "ship",
-      title: shipped ? "Reward claim locked" : "Ship gate waiting",
-      description: shipped ? "The verified run has a backend reward claim." : "Solve the boss and submit a Fiber invoice to lock the reward claim.",
-      time: shipped ? "done" : "locked",
-      ready: shipped,
-    },
-    ...proofEvents,
-  ];
-}
-
-function practiceStatusClass(status: PracticeRecord["status"]) {
-  if (status === "shipped" || status === "completed") {
-    return "border-cyber-green/20 bg-cyber-green/10 text-cyber-green";
+function formatDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "recent";
   }
-  if (status === "verified") {
-    return "border-electric-blue/20 bg-electric-blue/10 text-electric-blue";
-  }
-  return "border-warning-amber/20 bg-warning-amber/10 text-warning-amber";
-}
-
-function rewardStatusClass(status: string) {
-  if (status === "paid") {
-    return "border-cyber-green/20 bg-cyber-green/10 text-cyber-green";
-  }
-  if (status === "failed") {
-    return "border-red-500/30 bg-red-500/10 text-red-300";
-  }
-  return "border-electric-blue/20 bg-electric-blue/10 text-electric-blue";
-}
-
-function shortId(value: string) {
-  if (value.length <= 18) {
-    return value;
-  }
-  return `${value.slice(0, 10)}...${value.slice(-6)}`;
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
