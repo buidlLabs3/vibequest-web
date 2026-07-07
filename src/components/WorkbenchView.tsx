@@ -695,22 +695,22 @@ export default function WorkbenchView({
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Verification Console Terminal logs */}
-          {testConsoleLogs.length > 0 && (
-            <div className="bg-[#0B0C0E] border border-glass-border rounded-xl p-4 font-mono text-xs text-cyber-green flex flex-col gap-1 h-[220px] overflow-y-auto shadow-inner">
-              <div className="text-[10px] uppercase font-bold text-on-surface-variant border-b border-glass-border pb-1.5 mb-2 flex justify-between">
-                <span>Generated File Check Terminal</span>
-                <span>SYSTEM STATE: RUNNING</span>
-              </div>
-              {testConsoleLogs.map((log, index) => (
-                <div key={index} className="leading-relaxed">
-                  {log}
+            {/* Verification Console Terminal logs */}
+            {testConsoleLogs.length > 0 && (
+              <div className="h-[220px] overflow-y-auto border-t border-glass-border bg-[#0B0C0E] p-4 font-mono text-xs text-cyber-green shadow-inner">
+                <div className="mb-2 flex justify-between border-b border-glass-border pb-1.5 text-[10px] font-bold uppercase text-on-surface-variant">
+                  <span>Generated File Check Terminal</span>
+                  <span>SYSTEM STATE: RUNNING</span>
                 </div>
-              ))}
-            </div>
-          )}
+                {testConsoleLogs.map((log, index) => (
+                  <div key={index} className="leading-relaxed">
+                    {log}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           {questData && codeInsights && (
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr_0.9fr]">
