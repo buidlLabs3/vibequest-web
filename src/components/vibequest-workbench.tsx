@@ -1400,7 +1400,11 @@ export function VibeQuestWorkbench() {
             bossFightSolved={bossFightSolved}
             shipped={shipped}
             onShip={() => setActiveTab("ship-gate")}
-            onChallengeComplete={() => markCurrentPracticeRecord("completed", { bossFightSolved: true })}
+            onChallengeComplete={() => {
+              setBossFightSolved(true);
+              markCurrentPracticeRecord("completed", { bossFightSolved: true });
+              void persistCurrentProgress({ bossFightSolved: true });
+            }}
             onBossAttempt={handleBossAttempt}
             onAskCodeTutor={handleAskCodeTutor}
             onWorkspaceVerified={() => markCurrentPracticeRecord("verified")}

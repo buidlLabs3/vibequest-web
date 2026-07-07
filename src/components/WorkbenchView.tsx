@@ -385,6 +385,7 @@ export default function WorkbenchView({
 
   const isAllGatesPassed = gates.every(g => g.isCompleted);
   const fileChecksPassed = Boolean(gates.find((gate) => gate.id === "verification")?.isCompleted);
+  const challengeSubmitted = bossFightSolved || bossFeedback === "SUCCESS";
   const lessonSteps = [
     {
       label: "Inspect",
@@ -906,11 +907,12 @@ export default function WorkbenchView({
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-2 pt-4 border-t border-red-900/20">
                 <div className="flex items-center gap-3 w-full sm:w-auto">
                   <button
-                    onClick={handleBossSubmit}
-                    disabled={bossAnswer === null || bossFeedback === "SUCCESS"}
+                    type="button"
+                    onClick={challengeSubmitted ? (fileChecksPassed ? onShip : handleRunTests) : handleBossSubmit}
+                    disabled={!challengeSubmitted && bossAnswer === null}
                     className="px-6 py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold font-mono text-xs uppercase tracking-wider rounded transition-all cursor-pointer shrink-0"
                   >
-                    SUBMIT RUN
+                    {challengeSubmitted ? (fileChecksPassed ? "Record Badge" : "Run File Checks") : "Submit Challenge"}
                   </button>
                   <button
                     onClick={() => setShowBossHint(!showBossHint)}
@@ -926,13 +928,13 @@ export default function WorkbenchView({
                     FILE CHECKS STILL NEEDED BEFORE CLAIMING.
                   </span>
                 )}
-                {bossFeedback === "SUCCESS" && (
+                {challengeSubmitted && (
                   <span className="text-cyber-green font-mono text-xs uppercase tracking-wider font-bold flex items-center gap-2">
                     <CheckCircle className="w-4 h-4" />
                     CHALLENGE COMPLETE. LEARNING RECORD UPDATED!
                   </span>
                 )}
-                {bossFeedback === "FAIL" && (
+                {bossFeedback === "FAIL" && !challengeSubmitted && (
                   <span className="text-red-500 font-mono text-xs uppercase tracking-wider font-bold flex items-center gap-2">
                     <AlertCircle className="w-4 h-4" />
                     NOT QUITE. REVIEW THE TRUST BOUNDARY AND TRY AGAIN.
