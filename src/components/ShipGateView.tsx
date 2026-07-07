@@ -113,17 +113,6 @@ export default function ShipGateView({
 
       <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-12">
         <div className="flex flex-col gap-6 lg:col-span-7">
-          <div className="flex flex-col gap-5 rounded-xl border border-glass-border bg-[#16181D] p-6">
-            <h2 className="text-lg font-bold tracking-tight text-white">Pre-Flight Verification</h2>
-            <div className="flex flex-col gap-3">
-              <CheckRow passed={walletBound} title="JoyID Proof" description="The quest run belongs to the connected wallet proof." />
-              <CheckRow passed={ckbRpcOnline} title="Generation Backend" description="OpenAI, CKB RPC, and Fiber RPC are available for live quest work." />
-              <CheckRow passed={rewardLedgerOnline} title="Reward Ledger" description="MongoDB is available to store quest completion and payout claims." />
-              <CheckRow passed={isAllGatesPassed} title="Workspace Checks" description="Open Workbench and run generated file checks so proof, tests, and denial paths are verified." />
-              <CheckRow passed={bossFightSolved} title="Boss Challenge" description="Answer the code-specific boss question in Workbench to prove you understand the generated diff." />
-            </div>
-          </div>
-
           <div className="flex flex-col gap-4 rounded-xl border border-glass-border bg-[#16181D] p-6">
             <div className="flex items-center gap-2">
               <ReceiptText className="h-5 w-5 text-electric-blue" />
@@ -167,7 +156,7 @@ export default function ShipGateView({
             )}
             {!canShip && !shipped ? (
               <span className="block text-center font-mono text-[10px] uppercase leading-tight text-red-400">
-                Finish workspace checks, solve the boss challenge, then paste a Fiber invoice to lock the claim.
+                Complete the active quest and paste a Fiber invoice to lock the claim.
               </span>
             ) : null}
           </div>
@@ -177,7 +166,7 @@ export default function ShipGateView({
           <div className="flex flex-col gap-4 rounded-xl border border-glass-border bg-[#16181D] p-5">
             <h2 className="flex items-center gap-2 border-b border-glass-border pb-3 font-mono text-sm font-bold uppercase tracking-wider text-white">
               <Activity className="h-4 w-4 text-electric-blue" />
-              Reward Ledger
+              Claim Receipt
             </h2>
             {rewardClaim ? (
               <div className="flex flex-col gap-3 font-mono text-xs">
@@ -242,31 +231,6 @@ function StatusCard({
         <span className={`font-mono text-2xl font-black md:text-3xl ${toneClass}`}>{value}</span>
         <span className="mt-1 block font-mono text-[10px] uppercase text-on-surface-variant">{detail}</span>
       </div>
-    </div>
-  );
-}
-
-function CheckRow({
-  passed,
-  title,
-  description,
-}: {
-  passed: boolean;
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-4 rounded-lg border border-glass-border bg-[#0B0C0E]/60 p-4">
-      <div className="flex items-center gap-3">
-        {passed ? <CheckCircle className="h-5 w-5 shrink-0 text-cyber-green" /> : <AlertCircle className="h-5 w-5 shrink-0 text-warning-amber" />}
-        <div>
-          <h3 className="font-mono text-xs font-bold uppercase text-white">{title}</h3>
-          <p className="text-[11px] text-on-surface-variant">{description}</p>
-        </div>
-      </div>
-      <span className={`font-mono text-[10px] font-bold uppercase ${passed ? "text-cyber-green" : "text-warning-amber"}`}>
-        {passed ? "PASSED" : "PENDING"}
-      </span>
     </div>
   );
 }
