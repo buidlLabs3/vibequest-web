@@ -37,6 +37,19 @@ export interface LearningResource {
   reason: string;
 }
 
+export interface CodeExplainer {
+  primaryInvariant: string;
+  denialPath: string;
+  proofLabel: string;
+  proofArtifact: string;
+  networkLabel: string;
+  networkBoundary: string;
+  riskFocus: string;
+  inspectSteps: string[];
+  mentorPrompts: string[];
+  resources: LearningResource[];
+}
+
 export interface QuestData {
   runId: string;
   source?: string;
@@ -46,6 +59,7 @@ export interface QuestData {
   files: WorkbenchFile[];
   gates: VerificationGate[];
   bossFight: BossFight;
+  codeExplainer?: CodeExplainer | null;
   bossAttempts?: BossAttemptRecord[];
   codeTutorMessages?: CodeTutorMessageRecord[];
 }

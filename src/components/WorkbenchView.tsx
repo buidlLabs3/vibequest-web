@@ -15,7 +15,7 @@ import {
   MessageSquare,
   ExternalLink,
 } from "lucide-react";
-import { QuestData, WorkbenchFile, VerificationGate, type LearningResource } from "@/lib/workbench-types";
+import { QuestData, WorkbenchFile, VerificationGate, type CodeExplainer, type LearningResource } from "@/lib/workbench-types";
 
 const EMPTY_WORKSPACE_FILES: WorkbenchFile[] = [];
 
@@ -158,7 +158,7 @@ function isCkbCellWorkspace(quest: QuestData, haystack: string) {
   return Boolean(
     context?.module_id === "ckb-cells" ||
       context?.lesson_id?.startsWith("ckb-cells-") ||
-      /verifyckbcellproof|cellverifier|outpoint|inputindex|lockscript|typescripthash|celldatahash/.test(haystack),
+      /outpoint|inputindex|lockscript|typescripthash|celldatahash|cell data|type script|lock script/.test(haystack),
   );
 }
 
@@ -192,8 +192,8 @@ function verifyGeneratedWorkspace(quest: QuestData) {
   if (ckbCellWorkspace) {
     checks.push(
       {
-        label: "CKB Cell verifier file or function generated",
-        passed: /src\/cellverifier\.ts|verifyckbcellproof/.test(haystack),
+        label: "CKB Cell proof implementation generated",
+        passed: /outpoint|cell data|lockscript|type script|witness/.test(haystack),
       },
       {
         label: "OutPoint lineage and input index are checked",
@@ -257,7 +257,7 @@ export default function WorkbenchView({
 
   const workspaceFiles = questData?.files ?? EMPTY_WORKSPACE_FILES;
   const activeCodeTheme = CODE_THEMES[codeTheme];
-  const codeInsights = questData ? analyzeQuestCode(questData) : null;
+  const codeInsights = questData?.codeExplainer ?? (questData ? analyzeQuestCode(questData) : null);
 
   useEffect(() => {
     if (workspaceFiles.length === 0) {
@@ -721,18 +721,18 @@ export default function WorkbenchView({
                     <BookOpen className="h-5 w-5 text-electric-blue" />
                     <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-white">Code Explainer</h2>
                   </div>
-                  <span className="font-mono text-[10px] uppercase text-on-surface-variant">Trust boundary map</span>
+                  <span className="font-mono text-[10px] uppercase text-on-surface-variant">AI-authored code map</span>
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
                   <InsightCard label="Primary invariant" value={codeInsights.primaryInvariant} />
                   <InsightCard label="Denial path" value={codeInsights.denialPath} />
-                  <InsightCard label={codeInsights.proofLabel} value={codeInsights.paymentProof} />
-                  <InsightCard label={codeInsights.networkLabel} value={codeInsights.networkHook} />
+                  <InsightCard label={codeInsights.proofLabel} value={codeInsights.proofArtifact} />
+                  <InsightCard label={codeInsights.networkLabel} value={codeInsights.networkBoundary} />
                 </div>
                 <div className="mt-4 rounded-lg border border-electric-blue/20 bg-electric-blue/5 p-4">
                   <h3 className="font-mono text-xs font-bold uppercase text-electric-blue">What to inspect first</h3>
                   <ul className="mt-3 space-y-2 text-xs leading-relaxed text-on-surface-variant">
-                    {codeInsights.reviewChecklist.map((item) => (
+                    {codeInsights.inspectSteps.map((item) => (
                       <li key={item} className="flex gap-2">
                         <CheckCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyber-green" />
                         <span>{item}</span>
@@ -1085,135 +1085,76 @@ function InsightCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-type CodeInsights = {
-  primaryInvariant: string;
-  denialPath: string;
-  proofLabel: string;
-  paymentProof: string;
-  networkLabel: string;
-  networkHook: string;
-  riskFocus: string;
-  vulnerableLine: string;
-  testLine: string;
-  reviewChecklist: string[];
-  mentorPrompts: string[];
-  resources: LearningResource[];
-};
-
-function analyzeQuestCode(quest: QuestData): CodeInsights {
+function analyzeQuestCode(quest: QuestData): CodeExplainer {
   const haystack = quest.files.map((file) => `${file.path}\n${file.content}`).join("\n");
   const lower = haystack.toLowerCase();
-  const hasCkbCell = /verifyckbcellproof|cellverifier|outpoint|inputindex|lockscript|typescripthash|celldatahash/.test(lower);
-  const hasReceipt = /receipt|invoice|preimage|htlc/.test(lower);
-  const hasWitness = /witness|script|cell|xudt|capacity|lock/.test(lower);
+  const hasReceipt = /receipt|invoice|preimage|ptlc|htlc/.test(lower);
+  const hasWitness = /witness|script|cell|xudt|capacity|lock|outpoint/.test(lower);
   const hasSplit = /split|bps|creator|platform|payout|balance/.test(lower);
   const hasChannel = /channel|state|route|hop|fiber/.test(lower);
   const hasDenial = /throw|reject|false|invalid|unpaid|forbid|deny|mismatch/.test(lower);
-  const vulnerableLine = findLineReference(quest.files, /(verify|read|validate|authorize|can[A-Z]|return|throw|receipt|witness|invoice|preimage|split|payout|outPoint|lockScriptHash|typeScriptHash)/i);
-  const testLine = findLineReference(quest.files, /(test|it\(|expect|assert|throws|false|reject|unpaid|invalid|mismatch|outPoint|runId|lockScript)/i);
-  const primaryInvariant = hasCkbCell
-    ? "the witness must bind run id, input index, OutPoint, cell data hash, and lock/type scripts"
-    : hasSplit
-      ? "the payout or balance split must match the authorized asset and state transition"
-      : hasReceipt
-        ? "the receipt proof must be bound to the exact reader, action, and content/cell state"
-        : hasWitness
-          ? "the CKB witness and script data must match the transaction state being accepted"
-          : "the generated verifier must reject any input that is not explicitly authorized";
-  const riskFocus = hasCkbCell
-    ? "CKB cell-lineage and copied-witness risk"
-    : hasSplit
-      ? "payout split integrity"
-      : hasChannel
-        ? "Fiber channel-state replay risk"
-        : hasReceipt
-          ? "receipt replay and unpaid-read risk"
-          : hasWitness
-            ? "CKB witness trust boundary"
-            : "generated-code trust boundary";
+  const verifierLine = findLineReference(quest.files, /(verify|read|validate|authorize|settle|return|throw|receipt|witness|invoice|preimage|split|payout|outPoint)/i);
+  const testLine = findLineReference(quest.files, /(test|it\(|expect|assert|throws|false|reject|unpaid|invalid|mismatch|replay)/i);
 
-  if (hasCkbCell) {
-    return {
-      primaryInvariant,
-      denialPath: hasDenial
-        ? `The denial path starts around ${testLine}; it should mutate OutPoint, runId, or script hash and prove the verifier returns false.`
-        : "The generated files do not expose a CKB denial path yet. Add a test that mutates OutPoint, runId, or lockScriptHash before shipping.",
-      proofLabel: "Cell proof",
-      paymentProof: "The proof artifact is the witness signature plus the exact CKB input facts: run id, input index, OutPoint, cell data hash, lock script hash, and type script hash.",
-      networkLabel: "CKB boundary",
-      networkHook: "CKB state is not an account row. The verifier must follow the cell lineage and distinguish on-chain facts from local convenience checks.",
-      riskFocus,
-      vulnerableLine,
-      testLine,
-      reviewChecklist: [
-        `Trace the accepting branch at ${vulnerableLine}.`,
-        `Match OutPoint, input index, lock/type script hashes, and witness signature to denial tests around ${testLine}.`,
-        "Ask whether a copied witness can authorize a different cell, run, or script assumption.",
-        "Explain which checks come from CKB transaction structure and which are local verifier rules.",
-      ],
-      mentorPrompts: [
-        "What does this cell verifier trust?",
-        "Which field should I mutate first?",
-        "What is proven on-chain versus checked locally?",
-        "How could a copied witness replay work?",
-      ],
-      resources: learningResourcesFor(lower),
-    };
-  }
+  const primaryInvariant = hasSplit
+    ? "the generated payout or balance transition must match the authorized asset, amount, and recipient rules"
+    : hasReceipt
+      ? "the generated receipt proof must be scoped to the exact actor, action, resource, and network evidence"
+      : hasWitness
+        ? "the generated proof fields must match the transaction or witness evidence being accepted"
+        : "the generated verifier must reject any input that is not explicitly authorized";
+  const riskFocus = hasSplit
+    ? "payout integrity"
+    : hasChannel
+      ? "Fiber channel-state replay risk"
+      : hasReceipt
+        ? "receipt replay and unpaid-access risk"
+        : hasWitness
+          ? "proof and witness trust boundary"
+          : "generated-code trust boundary";
 
   return {
     primaryInvariant,
     denialPath: hasDenial
-      ? `There is a denial path to inspect at ${testLine}; make sure it attacks the same condition the verifier trusts.`
+      ? `Inspect the denial path around ${testLine}; it should mutate the same field the implementation trusts.`
       : "The generated files do not make the denial path obvious, so the learner should add one before shipping.",
-    proofLabel: "Payment proof",
-    paymentProof: hasReceipt
-      ? "Payment proof is represented through receipt/invoice/preimage terms; verify it cannot be copied across users, content, or runs."
-      : "Payment proof is indirect here; identify what state or witness stands in for payment authorization.",
-    networkLabel: "CKB/Fiber hook",
-    networkHook: hasWitness
-      ? "CKB state appears through cell/script/witness/xUDT concepts; explain what is trusted on-chain versus checked locally."
-      : hasChannel
-        ? "Fiber state appears through channel/PTLC/route terms; explain what prevents replay or stale state acceptance."
-        : "The quest mentions CKB/Fiber, but the code should be inspected for a concrete network-state binding.",
+    proofLabel: hasReceipt ? "Payment proof" : "Proof artifact",
+    proofArtifact: hasReceipt
+      ? "Payment evidence appears through invoice, receipt, PTLC/HTLC, or preimage terms; verify it cannot be copied into another request."
+      : "The proof artifact is indirect here; identify which witness, cell, signature, or state value is being trusted.",
+    networkLabel: hasChannel ? "Fiber boundary" : hasWitness ? "CKB boundary" : "Network boundary",
+    networkBoundary: hasChannel
+      ? "Fiber state should be scoped by channel, invoice, nonce, amount, and settlement expectation."
+      : hasWitness
+        ? "CKB state should come from concrete cell, script, witness, or transaction evidence, not only request JSON."
+        : "Connect the generated code back to the network evidence it claims to trust.",
     riskFocus,
-    vulnerableLine,
-    testLine,
-    reviewChecklist: [
-      `Trace the accepting branch at ${vulnerableLine}.`,
+    inspectSteps: [
+      `Trace the accepting branch around ${verifierLine}.`,
       `Match every trusted field to a denial test around ${testLine}.`,
       "Ask what an attacker can copy, omit, or mutate without changing the UI.",
-      "Explain the CKB/Fiber boundary in plain language before claiming the badge.",
+      "Explain the CKB/Fiber proof boundary in plain language before claiming the badge.",
     ],
     mentorPrompts: [
-      "What does this verifier trust?",
-      "How could this be replayed?",
-      "Which test proves unpaid access is blocked?",
-      "What should I patch before shipping?",
+      "What does this generated verifier trust?",
+      "Which field should the denial test mutate?",
+      "What is network evidence versus request data?",
+      "What would you patch before shipping?",
     ],
     resources: learningResourcesFor(lower),
   };
 }
 
-function buildMentorAnswer(question: string, _quest: QuestData, insights: CodeInsights) {
+function buildMentorAnswer(question: string, _quest: QuestData, insights: CodeExplainer) {
   const selected = question.trim() || "Explain the active generated code.";
   const lower = selected.toLowerCase();
-  const ckbCellMode = insights.riskFocus.includes("cell-lineage");
-  const focus = ckbCellMode
-    ? lower.includes("mutate") || lower.includes("field")
-      ? `Mutation route: start with OutPoint because it names the exact prior cell. Then mutate runId and lockScriptHash. If any mutation still passes, the verifier is accepting a copied witness. Start at ${insights.testLine}.`
-      : lower.includes("on-chain") || lower.includes("local")
-        ? `Boundary route: CKB supplies transaction structure, input cells, scripts, and witnesses. This verifier locally checks that the witness fields match the exact OutPoint, input index, run id, and script hashes around ${insights.vulnerableLine}.`
-        : lower.includes("replay") || lower.includes("copied")
-          ? `Replay route: a copied witness becomes dangerous when it is not scoped to the current run, input index, and OutPoint. Inspect ${insights.vulnerableLine}, then confirm the denial tests around ${insights.testLine}.`
-          : `Cell-verifier route: ${insights.primaryInvariant}. Read the accepting branch at ${insights.vulnerableLine}, then prove each trusted field has a denial test.`
-    : lower.includes("replay")
-      ? `Replay risk: look for any receipt, witness, invoice, preimage, or channel state that is accepted without being bound to this run/content/user. Start at ${insights.vulnerableLine}.`
-      : lower.includes("test") || lower.includes("blocked")
-        ? `Test focus: ${insights.testLine} should prove the denial path, not only the happy path. A strong test mutates the exact field the verifier trusts.`
-        : lower.includes("patch") || lower.includes("ship")
-          ? `Patch focus: make the accepted proof bind the action, actor, asset, and CKB/Fiber state. Then add a denial test before recording the badge.`
-          : `Trust-boundary focus: ${insights.primaryInvariant}. The accepting branch is around ${insights.vulnerableLine}.`;
+  const focus = lower.includes("replay")
+    ? `Replay risk: ${insights.denialPath}`
+    : lower.includes("test") || lower.includes("blocked") || lower.includes("mutate")
+      ? `Test focus: ${insights.inspectSteps[1] ?? insights.denialPath}`
+      : lower.includes("patch") || lower.includes("ship")
+        ? `Patch focus: ${insights.primaryInvariant}. ${insights.networkBoundary}`
+        : `Trust-boundary focus: ${insights.primaryInvariant}`;
   const resourceLines = insights.resources
     .slice(0, 3)
     .map((resource) => `- ${resource.title}: ${resource.reason} (${resource.url})`)
@@ -1224,9 +1165,9 @@ function buildMentorAnswer(question: string, _quest: QuestData, insights: CodeIn
     "",
     focus,
     "",
-    `Why it matters: ${insights.riskFocus} is where vibecoded CKB/Fiber apps become dangerous. The code can look clean while still accepting a copied receipt, stale channel state, wrong witness, or incorrect payout split.`,
+    `Why it matters: ${insights.riskFocus} is where vibecoded CKB/Fiber apps become dangerous. The code can look clean while still accepting copied proof data, stale state, wrong witnesses, or incorrect payout rules.`,
     "",
-    `Code reading route: ${insights.reviewChecklist.join(" -> ")}`,
+    `Code reading route: ${insights.inspectSteps.join(" -> ")}`,
     "",
     `Related references:\n${resourceLines}`,
   ].join("\n");

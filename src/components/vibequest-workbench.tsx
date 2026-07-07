@@ -43,6 +43,7 @@ import {
 import type {
   ActiveQuestSession,
   BossFight,
+  CodeExplainer,
   LearningResource,
   NotebookEntry,
   PracticeRecord,
@@ -87,10 +88,12 @@ const STORAGE_KEYS = {
   legacyWalletProof: "vibequest.walletProof",
   legacySecpWalletProof: "vibequest.walletProof.v2",
   proofLogs: "vibequest.proofLogs",
-  practiceRecords: "vibequest.practiceRecords.v1",
+  practiceRecords: "vibequest.practiceRecords.v2",
+  legacyPracticeRecords: "vibequest.practiceRecords.v1",
   notebookEntries: "vibequest.notebookEntries.v1",
   activeQuestSession: "vibequest.activeQuestSession.v1",
-  learningSession: "vibequest.learningSession.v1",
+  learningSession: "vibequest.learningSession.v2",
+  legacyLearningSession: "vibequest.learningSession.v1",
 } as const;
 
 const TAB_IDS = new Set<TabId>([
@@ -199,10 +202,12 @@ export function VibeQuestWorkbench() {
       return;
     }
 
-    const restoredTab = parseTabId(window.location.hash.slice(1)) ?? parseTabId(window.localStorage.getItem(STORAGE_KEYS.activeTab));
+    const restoredTab = parseTabId(window.location.hash.slice(1));
     const restoredWalletProof = parseWalletProof(window.localStorage.getItem(STORAGE_KEYS.walletProof));
     window.localStorage.removeItem(STORAGE_KEYS.legacyWalletProof);
     window.localStorage.removeItem(STORAGE_KEYS.legacySecpWalletProof);
+    window.localStorage.removeItem(STORAGE_KEYS.legacyLearningSession);
+    window.localStorage.removeItem(STORAGE_KEYS.legacyPracticeRecords);
     const restoredProofLogs = parseProofLogs(window.localStorage.getItem(STORAGE_KEYS.proofLogs));
     const restoredPracticeRecords = parsePracticeRecords(window.localStorage.getItem(STORAGE_KEYS.practiceRecords));
     const restoredNotebookEntries = parseNotebookEntries(window.localStorage.getItem(STORAGE_KEYS.notebookEntries));
@@ -683,9 +688,14 @@ export function VibeQuestWorkbench() {
       setHistoryError(null);
       try {
         const history = await getUserQuestHistory(address);
-        setQuestRuns(history.runs);
+        const currentRuns = history.runs.filter(isCurrentQuestRunRecord);
+        setQuestRuns(currentRuns);
         setRewardClaims(history.reward_claims ?? []);
-        setQuestStats(history.stats);
+        setQuestStats({
+          created: currentRuns.length,
+          completed: currentRuns.filter((run) => run.status === "completed").length,
+          uncompleted: currentRuns.filter((run) => run.status !== "completed").length,
+        });
         setHistoryError(null);
         setHistoryPersistenceMessage(
           history.persistence?.available === false
@@ -694,8 +704,8 @@ export function VibeQuestWorkbench() {
         );
 
         const activeRun = preferredRunId
-          ? history.runs.find((run) => run.run_id === preferredRunId) ?? history.active_run
-          : history.active_run;
+          ? currentRuns.find((run) => run.run_id === preferredRunId) ?? currentRuns[0] ?? null
+          : currentRuns.find((run) => run.run_id === history.active_run?.run_id) ?? currentRuns[0] ?? null;
         const shouldApplyHistoryRun = Boolean(preferredRunId || !questData?.runId);
 
         if (activeRun && shouldApplyHistoryRun) {
@@ -984,11 +994,22 @@ export function VibeQuestWorkbench() {
     setLearningError(null);
     setLearningWarning(null);
     setLearningGenerationStatus("Preparing five AI-authored lessons...");
+    setLearningModule(null);
+    setQuestData(null);
+    setSelectedFile(null);
+    setBossFightSolved(false);
+    setShipped(false);
+    setGates(EMPTY_GATES);
     setTutorMessages([]);
     setCheckpointAnswers({});
     setActiveLessonIndex(0);
     setPendingLearningQuestContext(null);
+    setGenerationError(null);
     setLearningSyncState("loading");
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(STORAGE_KEYS.learningSession);
+      window.localStorage.removeItem(STORAGE_KEYS.activeQuestSession);
+    }
 
     const pathProfile = pathId ? LEARNING_PATH_PROFILES[pathId] : null;
     const requestInterests = pathProfile ? pathProfile.interests : selectedInterests.slice(0, 3);
@@ -1140,17 +1161,12 @@ export function VibeQuestWorkbench() {
       .slice(0, 2)
       .join(" ");
     const lessonSummary = lesson.explanation.split("Code lens:")[0]?.trim() ?? lesson.why_it_matters;
-    const questPrompt = [
-      prompt.trim() || learningModule.capstone_quest_prompt,
-      `Generate a code quest directly from this completed lesson, not a generic challenge.`,
-      `Learning source: ${learningModule.title} / ${lesson.title}.`,
-      `Learner goal: ${learnerGoal}.`,
-      `Concepts to practice: ${lesson.concepts.join(", ")}.`,
-      `Checkpoint they passed: ${lesson.checkpoint.question}`,
-      `Correct understanding: ${correctOption?.label ?? lesson.checkpoint.explanation}`,
-      `Make the boss challenge test this exact misunderstanding: ${wrongGaps || lesson.checkpoint.explanation}`,
-      `Code clarity requirement: include a small verifier, denial-oriented test file, and an invariant a learner can explain from the generated code.`,
-    ].filter(Boolean).join(" ");
+    const questPrompt = compactLessonQuestPrompt({
+      bridge: prompt.trim() || lesson.quest_bridge || learningModule.capstone_quest_prompt,
+      moduleTitle: learningModule.title,
+      lessonTitle: lesson.title,
+      concepts: lesson.concepts,
+    });
     const learningContext: LearningQuestLink = {
       module_id: learningModuleId ?? learningModule.title,
       lesson_id: lesson.id,
@@ -1179,7 +1195,7 @@ export function VibeQuestWorkbench() {
     if (generated) {
       setActiveTab("workbench");
     }
-  }, [activeLessonIndex, checkpointAnswers, handleGenerateQuest, learnerGoal, learningModule, learningModuleId, selectedInterests]);
+  }, [activeLessonIndex, checkpointAnswers, handleGenerateQuest, learningModule, learningModuleId, selectedInterests]);
 
   const handleAskCodeTutor = useCallback(async (question: string, activeQuest: QuestData) => {
     const response = await askCodeTutor({
@@ -1559,6 +1575,27 @@ function normalizeHistoryError(message: string) {
   return message;
 }
 
+type LessonQuestPromptInput = {
+  bridge: string;
+  moduleTitle: string;
+  lessonTitle: string;
+  concepts: string[];
+};
+
+function compactLessonQuestPrompt({ bridge, moduleTitle, lessonTitle, concepts }: LessonQuestPromptInput) {
+  const conceptText = concepts.slice(0, 5).join(", ").trim();
+  return [
+    `Generate a lesson-derived code quest from ${moduleTitle} / ${lessonTitle}.`,
+    bridge.trim(),
+    conceptText ? `Practice these lesson concepts: ${conceptText}.` : null,
+    "Include one verifier implementation, one denial-oriented test file, a code-specific boss challenge, and no generic template content.",
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .slice(0, 900);
+}
+
 function parseTabId(value: string | null): TabId | null {
   if (!value) {
     return null;
@@ -1669,6 +1706,8 @@ function parsePracticeRecords(value: string | null): PracticeRecord[] {
           typeof record.runId === "string" &&
           typeof record.walletAddress === "string" &&
           typeof record.title === "string" &&
+          record.source === "open-ai" &&
+          (!record.questSnapshot || isCurrentQuestData(record.questSnapshot)) &&
           isPracticeRecordStatus(record.status) &&
           typeof record.savedToCloud === "boolean" &&
           typeof record.updatedAt === "string",
@@ -1754,7 +1793,15 @@ function parseLearningSession(value: string | null): LearningSession | null {
 }
 
 function isLegacyLearningModule(module: LearningModuleDto): boolean {
+  if (module.lessons.length !== 5) {
+    return true;
+  }
+
   if (module.lessons.some((lesson) => lesson.id.startsWith("ckb-cells-lesson-"))) {
+    return true;
+  }
+
+  if (module.lessons.some((lesson) => lesson.explanation.trim().split(/\s+/).filter(Boolean).length < 280)) {
     return true;
   }
 
@@ -1779,6 +1826,10 @@ function isLegacyLearningModule(module: LearningModuleDto): boolean {
 
   return [
     "without full lesson text",
+    "study routine for a",
+    "turn the code lens into one invariant",
+    "practice handoff:",
+    "name the trusted field, mutate it",
     "in practice, inspect the generated code for",
     "structured learning path loaded",
     "structured learning path restored",
@@ -1837,7 +1888,7 @@ function parseActiveQuestSession(value: string | null): ActiveQuestSession | nul
   try {
     const parsed = JSON.parse(value) as ActiveQuestSession;
     if (
-      isQuestData(parsed.questData) &&
+      isCurrentQuestData(parsed.questData) &&
       Array.isArray(parsed.gates) &&
       parsed.gates.every(isVerificationGate) &&
       typeof parsed.bossFightSolved === "boolean" &&
@@ -1872,6 +1923,66 @@ function isQuestData(value: unknown): value is QuestData {
       typeof quest.bossFight.title === "string" &&
       typeof quest.bossFight.question === "string",
   );
+}
+
+function isCurrentQuestData(value: unknown): value is QuestData {
+  if (!isQuestData(value)) {
+    return false;
+  }
+
+  const quest = value;
+  if (
+    quest.source !== "open-ai" ||
+    !quest.codeExplainer ||
+    !Array.isArray(quest.bossFight.options) ||
+    quest.bossFight.options.length < 4
+  ) {
+    return false;
+  }
+
+  const haystack = [
+    quest.questName,
+    quest.description,
+    quest.bossFight.challenge,
+    quest.bossFight.question,
+    quest.bossFight.hint,
+    ...quest.files.flatMap((file) => [file.path, file.content]),
+  ].join(" ").toLowerCase();
+
+  return !legacyQuestMarkers(haystack);
+}
+
+function isCurrentQuestRunRecord(run: QuestRunRecord): boolean {
+  if (
+    run.source !== "open-ai" ||
+    !run.quest.challenge_brief ||
+    !run.quest.code_explainer ||
+    run.quest.workbench_files.length < 2
+  ) {
+    return false;
+  }
+
+  const haystack = [
+    run.quest.title,
+    run.quest.premise,
+    run.quest.build_objective,
+    run.quest.boss_fight,
+    run.build_prompt,
+    ...run.quest.workbench_files.flatMap((file) => [file.path, file.content]),
+  ].join(" ").toLowerCase();
+
+  return !legacyQuestMarkers(haystack);
+}
+
+function legacyQuestMarkers(haystack: string) {
+  return [
+    "core-fallback",
+    "quick quest loaded",
+    "template quest",
+    "placeholder",
+    "fallback quest",
+    "generic paywall",
+  ].some((marker) => haystack.includes(marker));
 }
 
 function isWorkbenchFile(value: unknown): value is WorkbenchFile {
@@ -1950,6 +2061,7 @@ function mapQuestResponse(
       isCompleted: false,
     })),
     bossFight: buildBossFight(response),
+    codeExplainer: mapCodeExplainer(response.quest.code_explainer),
     bossAttempts,
     codeTutorMessages,
   };
@@ -1972,22 +2084,9 @@ function mapQuestRunRecord(run: QuestRunRecord): QuestData {
   }, run.boss_attempts ?? [], run.code_tutor_messages ?? []);
 }
 
-type CodeInsights = {
-  primaryInvariant: string;
-  denialPath: string;
-  paymentProof: string;
-  networkHook: string;
-  riskFocus: string;
-  vulnerableLine: string;
-  testLine: string;
-  reviewChecklist: string[];
-  mentorPrompts: string[];
-  resources: LearningResource[];
-};
-
 function buildBossFight(response: GenerateQuestResponse): BossFight {
   const questData = mapQuestBlueprintForAnalysis(response);
-  const insights = analyzeQuestCode(questData);
+  const insights = questData.codeExplainer ?? analyzeQuestCode(questData);
   const brief = response.quest.challenge_brief;
 
   if (brief && brief.correct_answer && brief.wrong_answers?.length) {
@@ -2017,7 +2116,7 @@ function buildBossFight(response: GenerateQuestResponse): BossFight {
   const correctIndex = stableChoiceIndex(response.run_id, response.quest.title, insights.riskFocus);
   const correct = {
     label: `Defend ${insights.riskFocus} by proving ${insights.primaryInvariant.toLowerCase()}`,
-    rationale: `Correct. The generated code only deserves a badge after the learner can explain the invariant, point to ${insights.vulnerableLine}, and show the denial test at ${insights.testLine}.`,
+    rationale: `Correct. The generated code only deserves a badge after the learner can explain the invariant and show the denial path: ${insights.denialPath}`,
   };
   const distractors = [
     {
@@ -2041,9 +2140,9 @@ function buildBossFight(response: GenerateQuestResponse): BossFight {
     question: `In this quest's generated code, what is the strongest proof that the AI output is safe to ship?`,
     options,
     correctAnswerIndex: correctIndex,
-    hint: `${insights.paymentProof} ${insights.denialPath}`,
+    hint: `${insights.proofArtifact} ${insights.denialPath}`,
     victoryMessage: `You defended ${insights.riskFocus}, tied it to the generated tests, and turned the AI output into code you actually understand.`,
-    insight: `Focus on ${insights.vulnerableLine}. That is where a vibecoder can accidentally trust a string, receipt, witness, channel state, or payout split without binding it to the action being authorized.`,
+    insight: insights.inspectSteps.join(" "),
     resources: insights.resources,
   };
 }
@@ -2088,10 +2187,30 @@ function mapQuestBlueprintForAnalysis(response: GenerateQuestResponse): QuestDat
       insight: "",
       resources: [],
     },
+    codeExplainer: mapCodeExplainer(response.quest.code_explainer),
   };
 }
 
-function analyzeQuestCode(quest: QuestData): CodeInsights {
+function mapCodeExplainer(value: GenerateQuestResponse["quest"]["code_explainer"] | null | undefined): CodeExplainer | null {
+  if (!value) {
+    return null;
+  }
+
+  return {
+    primaryInvariant: value.primary_invariant,
+    denialPath: value.denial_path,
+    proofLabel: value.proof_label,
+    proofArtifact: value.proof_artifact,
+    networkLabel: value.network_label,
+    networkBoundary: value.network_boundary,
+    riskFocus: value.risk_focus,
+    inspectSteps: value.inspect_steps,
+    mentorPrompts: value.mentor_prompts,
+    resources: value.resources,
+  };
+}
+
+function analyzeQuestCode(quest: QuestData): CodeExplainer {
   const haystack = quest.files.map((file) => `${file.path}\n${file.content}`).join("\n");
   const lower = haystack.toLowerCase();
   const hasReceipt = /receipt|invoice|preimage|htlc/.test(lower);
@@ -2124,18 +2243,18 @@ function analyzeQuestCode(quest: QuestData): CodeInsights {
     denialPath: hasDenial
       ? `There is a denial path to inspect at ${testLine}; make sure it attacks the same condition the verifier trusts.`
       : "The generated files do not make the denial path obvious, so the learner should add one before shipping.",
-    paymentProof: hasReceipt
+    proofLabel: hasReceipt ? "Payment proof" : "Proof artifact",
+    proofArtifact: hasReceipt
       ? "Payment proof is represented through receipt/invoice/preimage terms; verify it cannot be copied across users, content, or runs."
       : "Payment proof is indirect here; identify what state or witness stands in for payment authorization.",
-    networkHook: hasWitness
+    networkLabel: hasWitness ? "CKB boundary" : hasChannel ? "Fiber boundary" : "Network boundary",
+    networkBoundary: hasWitness
       ? "CKB state appears through cell/script/witness/xUDT concepts; explain what is trusted on-chain versus checked locally."
       : hasChannel
         ? "Fiber state appears through channel/PTLC/route terms; explain what prevents replay or stale state acceptance."
         : "The quest mentions CKB/Fiber, but the code should be inspected for a concrete network-state binding.",
     riskFocus,
-    vulnerableLine,
-    testLine,
-    reviewChecklist: [
+    inspectSteps: [
       `Trace the accepting branch at ${vulnerableLine}.`,
       `Match every trusted field to a denial test around ${testLine}.`,
       "Ask what an attacker can copy, omit, or mutate without changing the UI.",

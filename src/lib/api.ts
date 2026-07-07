@@ -8,6 +8,7 @@ export type QuestBlueprint = {
   comprehension_gates: string[];
   boss_fight: string;
   challenge_brief?: QuestChallengeBrief | null;
+  code_explainer: QuestCodeExplainerDto;
   reward_logic: string;
   ckb_fiber_hooks: string[];
   workbench_files: WorkbenchFile[];
@@ -29,6 +30,19 @@ export type QuestChallengeBrief = {
 export type ChallengeWrongAnswer = {
   label: string;
   feedback: string;
+};
+
+export type QuestCodeExplainerDto = {
+  primary_invariant: string;
+  denial_path: string;
+  proof_label: string;
+  proof_artifact: string;
+  network_label: string;
+  network_boundary: string;
+  risk_focus: string;
+  inspect_steps: string[];
+  mentor_prompts: string[];
+  resources: LearningResourceDto[];
 };
 
 export type WorkbenchFile = {
