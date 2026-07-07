@@ -15,6 +15,7 @@ import {
   askAndSaveLearningTutor,
   askCodeTutor,
   askLearningTutor,
+  bindWallet,
   completeQuest,
   generateLearningLesson,
   generateQuest,
@@ -830,7 +831,19 @@ export function VibeQuestWorkbench() {
       },
       ...previous,
     ]);
-  }, [open, signer]);
+
+    try {
+      await bindWallet({ wallet: proof });
+      setHistoryError(null);
+      setHistoryPersistenceMessage(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Wallet profile failed to save.";
+      setHistoryError(normalizeHistoryError(message));
+    }
+
+    void loadQuestHistory(proof.address);
+    void loadLearningSession(proof.address);
+  }, [loadLearningSession, loadQuestHistory, open, signer]);
 
   const unbindWalletProof = useCallback(() => {
     setWalletProof(null);

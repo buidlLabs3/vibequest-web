@@ -353,14 +353,20 @@ export type SavedTutorExchangeResponse = {
   session: LearningSessionRecord | null;
 };
 
+export type UserProfileResponse = {
+  address: string;
+  quest_counts: UserQuestCounts;
+  created_at: string;
+  updated_at: string;
+  last_seen_at: string;
+};
+
+export type BindWalletRequest = {
+  wallet: WalletProof;
+};
+
 export type UserQuestHistoryResponse = {
-  user: {
-    address: string;
-    quest_counts: UserQuestCounts;
-    created_at: string;
-    updated_at: string;
-    last_seen_at: string;
-  } | null;
+  user: UserProfileResponse | null;
   stats: UserQuestCounts;
   active_run: QuestRunRecord | null;
   runs: QuestRunRecord[];
@@ -545,6 +551,22 @@ export async function askCodeTutor(payload: CodeTutorRequest): Promise<CodeTutor
   return response.json() as Promise<CodeTutorResponse>;
 }
 
+
+export async function bindWallet(payload: BindWalletRequest): Promise<UserProfileResponse> {
+  const response = await fetch(`${API_BASE_URL}/users/bind`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(await apiErrorMessage(response, "Wallet profile failed to save."));
+  }
+
+  return response.json() as Promise<UserProfileResponse>;
+}
 
 export async function getLearningSession(address: string): Promise<LearningSessionResponse> {
   const response = await fetch(API_BASE_URL + "/users/" + encodeURIComponent(address) + "/learning", {

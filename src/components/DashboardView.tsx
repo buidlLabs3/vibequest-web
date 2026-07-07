@@ -92,6 +92,7 @@ export default function DashboardView({
   onOpenQuestRunRecord,
   onOpenPracticeRecord,
   questRuns,
+  questStats,
   rewardClaims,
   practiceRecords,
   historyLoading,
@@ -143,6 +144,14 @@ export default function DashboardView({
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
       .slice(0, 6);
   }, [practiceRecords, questRuns]);
+
+  const cloudCompletedIds = new Set(questRuns.filter((run) => run.status === "completed").map((run) => run.run_id));
+  const localCompletedQuests = practiceRecords.filter((record) => (record.status === "completed" || record.status === "shipped") && !cloudCompletedIds.has(record.runId)).length;
+  const completedQuestCount = Math.max(questStats.completed, cloudCompletedIds.size) + localCompletedQuests;
+  const learnerScore = completedLessons * 20 + completedQuestCount * 35 + Math.min(savedWork.length, 6) * 5 + rewardClaims.length * 15;
+  const currentRank = getLearnerRank(learnerScore);
+  const nextRank = getNextLearnerRank(learnerScore);
+  const rankProgress = nextRank ? Math.min(100, Math.round(((learnerScore - currentRank.min) / (nextRank.min - currentRank.min)) * 100)) : 100;
 
   const nextStep = !walletBound
     ? {
@@ -209,10 +218,13 @@ export default function DashboardView({
             <h2 className="mt-2 text-2xl font-black text-white">{nextStep.label}</h2>
             <p className="mt-2 max-w-3xl text-sm leading-relaxed text-on-surface-variant">{nextStep.detail}</p>
           </div>
-          <div className="grid grid-cols-3 gap-2 sm:min-w-[360px]">
-            <ProgressChip label="Learn" value={learningModule ? `${moduleProgress}%` : "Start"} ready={Boolean(learningModule)} />
-            <ProgressChip label="Quest" value={questData ? (bossFightSolved ? "Solved" : "Open") : "None"} ready={Boolean(questData)} />
-            <ProgressChip label="Reward" value={latestReward?.status ?? (shipped ? "Ready" : "Later")} ready={Boolean(latestReward || shipped)} />
+          <div className="grid gap-2 sm:min-w-[420px]">
+            <RankCard rank={currentRank.label} score={learnerScore} progress={rankProgress} nextRank={nextRank?.label ?? "Max rank"} />
+            <div className="grid grid-cols-3 gap-2">
+              <ProgressChip label="Learn" value={learningModule ? `${moduleProgress}%` : "Start"} ready={Boolean(learningModule)} />
+              <ProgressChip label="Quest" value={questData ? (bossFightSolved ? "Solved" : "Open") : "None"} ready={Boolean(questData)} />
+              <ProgressChip label="Reward" value={latestReward?.status ?? (shipped ? "Ready" : "Later")} ready={Boolean(latestReward || shipped)} />
+            </div>
           </div>
         </div>
       </section>
@@ -337,6 +349,42 @@ export default function DashboardView({
           </Panel>
         </div>
       </section>
+    </div>
+  );
+}
+
+const LEARNER_RANKS = [
+  { label: "Explorer", min: 0 },
+  { label: "Boundary Scout", min: 40 },
+  { label: "Proof Builder", min: 100 },
+  { label: "Cell Architect", min: 180 },
+  { label: "Protocol Defender", min: 280 },
+];
+
+function getLearnerRank(score: number) {
+  return [...LEARNER_RANKS].reverse().find((rank) => score >= rank.min) ?? LEARNER_RANKS[0];
+}
+
+function getNextLearnerRank(score: number) {
+  return LEARNER_RANKS.find((rank) => score < rank.min) ?? null;
+}
+
+function RankCard({ rank, score, progress, nextRank }: { rank: string; score: number; progress: number; nextRank: string }) {
+  return (
+    <div className="rounded-xl border border-electric-blue/25 bg-[#0B0C0E] p-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">Learner rank</p>
+          <p className="mt-1 text-sm font-black uppercase text-white">{rank}</p>
+        </div>
+        <div className="text-right font-mono text-[10px] uppercase text-electric-blue">
+          <p>{score} XP</p>
+          <p>Next: {nextRank}</p>
+        </div>
+      </div>
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#15181F]">
+        <div className="h-full rounded-full bg-electric-blue transition-all" style={{ width: `${progress}%` }} />
+      </div>
     </div>
   );
 }

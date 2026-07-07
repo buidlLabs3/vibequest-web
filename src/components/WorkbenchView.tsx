@@ -697,6 +697,21 @@ export default function WorkbenchView({
             </div>
           </div>
 
+          {/* Verification Console Terminal logs */}
+          {testConsoleLogs.length > 0 && (
+            <div className="bg-[#0B0C0E] border border-glass-border rounded-xl p-4 font-mono text-xs text-cyber-green flex flex-col gap-1 h-[220px] overflow-y-auto shadow-inner">
+              <div className="text-[10px] uppercase font-bold text-on-surface-variant border-b border-glass-border pb-1.5 mb-2 flex justify-between">
+                <span>Generated File Check Terminal</span>
+                <span>SYSTEM STATE: RUNNING</span>
+              </div>
+              {testConsoleLogs.map((log, index) => (
+                <div key={index} className="leading-relaxed">
+                  {log}
+                </div>
+              ))}
+            </div>
+          )}
+
           {questData && codeInsights && (
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr_0.9fr]">
               <div className="rounded-xl border border-glass-border bg-[#16181D] p-5">
@@ -823,20 +838,6 @@ export default function WorkbenchView({
             </div>
           ) : null}
 
-          {/* Verification Console Terminal logs */}
-          {testConsoleLogs.length > 0 && (
-            <div className="bg-[#0B0C0E] border border-glass-border rounded-xl p-4 font-mono text-xs text-cyber-green flex flex-col gap-1 h-[220px] overflow-y-auto shadow-inner">
-              <div className="text-[10px] uppercase font-bold text-on-surface-variant border-b border-glass-border pb-1.5 mb-2 flex justify-between">
-                <span>Generated File Check Terminal</span>
-                <span>SYSTEM STATE: RUNNING</span>
-              </div>
-              {testConsoleLogs.map((log, index) => (
-                <div key={index} className="leading-relaxed">
-                  {log}
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       </div>
 
