@@ -1,5 +1,5 @@
 export type Difficulty = "novice" | "builder" | "boss";
-export type QuestSource = "open-ai" | "core-fallback" | "reviewed-path";
+export type QuestSource = "open-ai";
 
 export type QuestBlueprint = {
   title: string;
@@ -459,7 +459,7 @@ export async function generateQuest(
   if (!response.ok) {
     let message = response.status === 504
       ? "Quest generation timed out before vibequest-core returned. Try again with a shorter prompt."
-      : "Quest generation failed. VibeQuest could not compile a usable quest from this request.";
+      : "OpenAI did not return a complete code quest. Please regenerate with a focused request.";
     const bodyText = await response.text().catch(() => "");
 
     try {

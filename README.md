@@ -4,6 +4,10 @@ Next.js + TypeScript frontend for VibeQuest: an AI gamified CKB/Fiber learning w
 
 Requires Node.js `>=20.19.0`.
 
+## Demo
+
+Watch the product walkthrough: [demo.webm](demo.webm).
+
 ## Run
 
 ```bash

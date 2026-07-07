@@ -210,7 +210,7 @@ export function VibeQuestWorkbench() {
     const restoredLearningSession = parseLearningSession(window.localStorage.getItem(STORAGE_KEYS.learningSession));
 
     if (restoredLearningSession) {
-      if (isLegacyLearningModule(restoredLearningSession.module, restoredLearningSession.source)) {
+      if (isLegacyLearningModule(restoredLearningSession.module)) {
         window.localStorage.removeItem(STORAGE_KEYS.learningSession);
       } else {
         setLearningModule(restoredLearningSession.module);
@@ -624,7 +624,7 @@ export function VibeQuestWorkbench() {
   }, []);
 
   const applyLearningSession = useCallback((session: LearningSessionRecord) => {
-    if (isLegacyLearningModule(session.module, session.source)) {
+    if (isLegacyLearningModule(session.module)) {
       setLearningModule(null);
       setLearningModuleId(null);
       setCheckpointAnswers({});
@@ -1720,10 +1720,7 @@ type LearningSession = {
 
 
 function parseQuestSource(value: unknown): QuestSource {
-  if (value === "core-fallback" || value === "reviewed-path") {
-    return value;
-  }
-
+  void value;
   return "open-ai";
 }
 
@@ -1756,11 +1753,7 @@ function parseLearningSession(value: string | null): LearningSession | null {
   return null;
 }
 
-function isLegacyLearningModule(module: LearningModuleDto, source: QuestSource): boolean {
-  if (source === "core-fallback") {
-    return true;
-  }
-
+function isLegacyLearningModule(module: LearningModuleDto): boolean {
   if (module.lessons.some((lesson) => lesson.id.startsWith("ckb-cells-lesson-"))) {
     return true;
   }
