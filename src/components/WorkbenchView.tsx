@@ -907,7 +907,7 @@ export default function WorkbenchView({
                 <div className="flex items-center gap-3 w-full sm:w-auto">
                   <button
                     onClick={handleBossSubmit}
-                    disabled={bossAnswer === null || bossFeedback === "SUCCESS" || !fileChecksPassed}
+                    disabled={bossAnswer === null || bossFeedback === "SUCCESS"}
                     className="px-6 py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold font-mono text-xs uppercase tracking-wider rounded transition-all cursor-pointer shrink-0"
                   >
                     SUBMIT RUN
@@ -923,7 +923,7 @@ export default function WorkbenchView({
                 {!fileChecksPassed && (
                   <span className="text-warning-amber font-mono text-xs uppercase tracking-wider font-bold flex items-center gap-2">
                     <AlertCircle className="w-4 h-4" />
-                    RUN FILE CHECKS BEFORE SUBMITTING.
+                    FILE CHECKS STILL NEEDED BEFORE CLAIMING.
                   </span>
                 )}
                 {bossFeedback === "SUCCESS" && (
