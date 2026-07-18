@@ -46,6 +46,50 @@ flowchart LR
     CORE --> PROXY
 ```
 
+## Dynamic Content Contract
+
+VibeQuest is not a static quiz site or a repository of pre-written lessons. The product has a small set of learning lanes, but the lesson content, checkpoint questions, tutor answers, code quests, denial tests, code explainers, and boss challenges are generated at runtime from the learner profile and the active lesson.
+
+The backend treats AI output as a draft artifact, not as trusted UI content. `vibequest-core` accepts a generated lesson or quest only when it matches the product contract:
+
+| Artifact | Required Shape |
+| --- | --- |
+| Learning path | 5 modules, each with a clear concept, 300+ word explainer target, checkpoint, misconception, and practice bridge |
+| Checkpoint | Lesson-specific question, shuffled options, correct answer, explanation, and follow-up |
+| Tutor answer | Context-aware answer tied to the active lesson, plus a follow-up question |
+| Code quest | Generated implementation file, generated test file, denial path, CKB/Fiber proof signal, and boss prompt |
+| Code explainer | Primary invariant, proof artifact, denial path, network boundary, inspect steps, and learner prompts |
+
+If the generated payload is incomplete, generic, or repeats a rejected scaffold, the backend rejects it and the UI asks the learner to regenerate. That keeps the product reviewable: every accepted quest must carry enough code, tests, and explanation for the learner to defend what the AI produced.
+
+## Personalization Model
+
+Personalization begins before generation. The learner chooses a learning lane, speciality, goal, and pace. Those inputs shape the learning path and every later quest.
+
+| Input | How It Changes The Product |
+| --- | --- |
+| Learning lane | Selects the CKB/Fiber concept family, such as CKB Cells, Fiber payments, proof security, or wallet identity |
+| Speciality | Changes framing for vibecoders, frontend builders, backend engineers, auditors, product/community learners, or researchers |
+| Goal | Tells the AI what the learner is trying to understand or build |
+| Pace | Controls lesson density, checkpoint difficulty, and explanation depth |
+| Checkpoint result | Determines whether the learner unlocks practice or needs explanation |
+| Tutor questions | Add context for later review and remediation |
+
+The quest compiler uses the completed lesson, checkpoint answer, concepts, misconception, and practice bridge. A quest generated from a Fiber replay lesson should therefore test Fiber replay boundaries, not a generic verifier pattern.
+
+## Cost And Maintenance Controls
+
+Real-time AI is used where it creates learning value, not on every render. Generated paths, quests, tutor notes, and progress records are stored in MongoDB so refreshes and dashboard review do not trigger repeated model calls.
+
+AI calls happen only for:
+
+- creating a new learning path,
+- asking the lesson tutor,
+- turning a completed lesson into a quest,
+- generating a custom quest from the Quest Run page.
+
+The backend keeps prompts compact, requests structured JSON, validates the response, and stores accepted artifacts. This makes the grant-period MVP affordable while leaving room for post-grant operation through low-cost hosting, usage limits, ecosystem sponsorship, beta cohorts, or paid learning tracks if adoption grows.
+
 ## Core Product Surfaces
 
 | Surface | Role | User Outcome |

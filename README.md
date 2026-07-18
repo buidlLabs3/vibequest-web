@@ -64,7 +64,7 @@ flowchart TD
 
 ## Product Architecture
 
-The product architecture is documented in [`docs/product-architecture.md`](docs/product-architecture.md).
+The product architecture is documented in [`docs/product-architecture.md`](docs/product-architecture.md). It explains the dynamic AI generation contract, personalization model, cost controls, persistence flow, and how generated lessons become verified code quests.
 
 ## Paired Backend
 
